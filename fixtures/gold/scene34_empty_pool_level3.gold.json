@@ -1,0 +1,111 @@
+{
+  "meta": {
+    "target_input": "scene34_empty_pool_level3.json",
+    "level": "Level 3 Gold Label (독립 정답 레이블)",
+    "description": "SCENE 34 107발언 실전 회의록에 대한 기준 정답지. Data Leakage 방지를 위해 inputs 디렉토리와 100% 독립 분리 수록."
+  },
+  "expected_issues": [
+    {
+      "subject_key": "suhyeon_facial_expression",
+      "signal": "explicit_opposition",
+      "issue_type": "interpretation_gap",
+      "subject": "수현의 표정 톤 (무표정 vs 미세한 반응/실소)",
+      "question": "수현의 표정은 무표정입니까, 미세한 반응이 열려있는 실소입니까?",
+      "evidence": ["U04", "U05", "U07", "U08", "U09"],
+      "expected_state": "unresolved",
+      "severity": "high"
+    },
+    {
+      "subject_key": "water_insulation_crane_safety",
+      "signal": "creative_production_clash",
+      "issue_type": "missing_information",
+      "subject": "젖은 바닥 전원 케이블 절연 검측 및 크레인 안전 차단",
+      "question": "안전관리자의 바닥 누수 및 전기 차단 확인 전 크레인/전동장비 진입이 차단됩니까?",
+      "evidence": ["U17", "U18", "U20", "U34", "U37"],
+      "expected_state": "unresolved",
+      "severity": "critical"
+    },
+    {
+      "subject_key": "tag_tearing_insert_coverage",
+      "signal": "intent_coverage_gap",
+      "issue_type": "missing_information",
+      "subject": "핵심 행동(이름표 찢어 숨기기) 전담 컷 누락 및 틸트 연출 충돌",
+      "question": "이름표를 찢어 손에 숨기는 행동이 샷 보드 컷 구성에 전담 컷으로 확보되어 있습니까?",
+      "evidence": ["U04", "U17", "U18", "U27", "U28", "U60", "U61", "U62", "U63", "U64"],
+      "expected_state": "unresolved",
+      "severity": "high"
+    },
+    {
+      "subject_key": "actor_barefoot_tile_safety",
+      "signal": "term_divergence",
+      "issue_type": "missing_information",
+      "subject": "배우 맨발 걷기 연출과 타일 파손/유리 조각 안전 검측",
+      "question": "답사에서 타일 파손 및 유리 조각 안전 확인 전까지 맨발 연출이 제한됩니까?",
+      "evidence": ["U95", "U97", "U98"],
+      "expected_state": "unresolved",
+      "severity": "medium"
+    }
+  ],
+  "expected_non_issues": [
+    {
+      "id": "NI-01",
+      "subject_key": "blue_lighting_and_fungus_tile",
+      "subject": "푸른 조명과 곰팡이 타일 미장센의 조율",
+      "evidence": ["U27", "U28", "U29", "U30", "U31"],
+      "reason": "촬영의 푸른 새벽 조명 제안과 미술의 녹색 곰팡이 공간 살리기 제안을 감독이 둘 다 승인함",
+      "forbidden_open_signals": ["term_divergence", "interpretation_gap"]
+    },
+    {
+      "id": "NI-02",
+      "subject_key": "tag_replica_prop_budget",
+      "subject": "이름표 소품 여러 개 복제 예산",
+      "evidence": ["U24", "U25", "U26"],
+      "reason": "미술의 소품 복제 요구에 제작PD가 소품 예산 수준으로 제작 허용하고 감독이 승인함",
+      "forbidden_open_signals": ["creative_production_clash", "constraint_conflict"]
+    }
+  ],
+  "expected_decisions": [
+    {
+      "did": "D-01",
+      "subject_key": "swim_cap_color_teal",
+      "subject": "수영모 색상 바랜 청록색 확정",
+      "evidence": ["U90", "U92", "U93", "U94"],
+      "decision_state": "confirmed",
+      "note": "노란색 대신 바랜 청록색으로 고정하고 노출로 분리"
+    },
+    {
+      "did": "D-02",
+      "subject_key": "last_wide_shot_six_cut_rule",
+      "subject": "여섯 번째 컷 고정 와이드 및 빈 수영장 잔상 확정",
+      "evidence": ["U73", "U74", "U75"],
+      "decision_state": "confirmed",
+      "note": "컷 수 추가 없이 여섯 번째 컷에서 인물 프레임 아웃 후 빈 수영장 유지"
+    }
+  ],
+  "expected_provisional_decisions": [
+    {
+      "did": "P-01",
+      "subject_key": "lens_50mm_with_85mm_option",
+      "subject": "50mm 미디엄 클로즈업 콘티 기준 수립",
+      "evidence": ["U10", "U11"],
+      "decision_state": "provisional",
+      "note": "현재 작업 기준은 50mm, 85mm 타이트 컷은 현장 옵션 후보로 유지"
+    },
+    {
+      "did": "P-02",
+      "subject_key": "crane_hold_handheld_base",
+      "subject": "크레인 보류 및 핸드헬드/슬라이더 기준 준비",
+      "evidence": ["U38", "U39"],
+      "decision_state": "provisional",
+      "note": "안전 확인 전까지 핸드헬드/슬라이더 기준, 크레인은 보류"
+    },
+    {
+      "did": "P-03",
+      "subject_key": "tag_tearing_partially_hidden_hand",
+      "subject": "이름표 찢기 손동작 가려진 표현",
+      "evidence": ["U64", "U65"],
+      "decision_state": "provisional",
+      "note": "세 번째 컷 안에서 손이 수영모 안쪽으로 들어갔다 나오는 정도로 임시 승인"
+    }
+  ]
+}

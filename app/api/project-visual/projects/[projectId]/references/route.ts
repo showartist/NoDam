@@ -1,0 +1,4 @@
+import { getProjectVisualService } from "@/lib/services/projectVisual";
+import { handle,json } from "../../../http";
+export async function GET(_:Request,{params}:{params:Promise<{projectId:string}>}){return handle(async()=>getProjectVisualService().listReferences((await params).projectId));}
+export async function POST(request:Request,{params}:{params:Promise<{projectId:string}>}){return handle(async()=>{const body=await json(request);return getProjectVisualService().createReference({id:body.id??crypto.randomUUID(),projectId:(await params).projectId,title:body.title,sourceMethod:body.sourceMethod,contentType:body.contentType,adoptionLevel:body.adoptionLevel,referenceImageState:body.referenceImageState,assetUri:body.assetUri,take:body.take,drop:body.drop,responsibleRole:body.responsibleRole,evidence:body.evidence,versionLabel:body.versionLabel});},201);}

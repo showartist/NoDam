@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SceneSync — Project Visual Workspace (영화인 현장 직관 UI)</title>
+<style>
+  :root {
+    --bg-dark: #F7F7F5;
+    --bg-radial: #F7F7F5;
+    --panel-glass: #FFFFFF;
+    --panel-raised: #F8FAFC;
+    --border-glass: #E2E8F0;
+    --border-highlight: #BFDBFE;
+    --text-main: #171A1F;
+    --text-dim: #5F6672;
+    --text-muted: #8A919D;
+    --cyan: #2563EB;
+    --cyan-glow: rgba(37, 99, 235, 0.15);
+    --violet: #7C3AED;
+    --violet-glow: rgba(124, 58, 237, 0.15);
+    --amber: #C2410C;
+    --amber-glow: rgba(194, 65, 12, 0.15);
+    --emerald: #047857;
+    --rose: #B91C1C;
+    --font-heading: 'Outfit', -apple-system, sans-serif;
+    --font-body: 'Inter', -apple-system, sans-serif;
+    --font-mono: 'Fira Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #F7F7F5; color: #171A1F; font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; background: #F7F7F5; }
+
+  .glow-orb-1 { position: fixed; top: -100px; left: 20%; width: 500px; height: 500px; background: radial-gradient(circle, rgba(56,189,248,0.12) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+  .glow-orb-2 { position: fixed; top: 300px; right: 10%; width: 600px; height: 600px; background: radial-gradient(circle, rgba(192,132,252,0.08) 0%, transparent 70%); pointer-events: none; z-index: 0; }
+
+  .disclaimer-bar {
+    position: relative; z-index: 50; padding: 7px 16px; text-align: center;
+    background: linear-gradient(90deg, rgba(56,189,248,0.15), rgba(56,189,248,0.05), rgba(56,189,248,0.15));
+    border-bottom: 1px solid rgba(56,189,248,0.3); color: #bae6fd; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: flex; justify-content: center; align-items: center; gap: 8px;
+  }
+  .disclaimer-bar span.pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 8px #38bdf8; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 20px 24px 80px; position: relative; z-index: 10; }
+
+  .header-card {
+    background: var(--panel-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); margin-bottom: 20px;
+  }
+  .topbar { display: grid; grid-template-columns: minmax(300px, 1fr) auto auto auto; gap: 16px; align-items: center; }
+  .brand-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--cyan); letter-spacing: 0.12em; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .brand-tag::before { content: ""; display: inline-block; width: 6px; height: 6px; background: var(--cyan); border-radius: 50%; box-shadow: 0 0 6px var(--cyan); }
+  .brand h1 { font-family: var(--font-heading); font-size: 26px; font-weight: 800; letter-spacing: -0.02em; background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  
+  .metric-badge {
+    padding: 10px 16px; border-radius: 12px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-glass); font-family: var(--font-mono); text-align: right;
+  }
+  .metric-badge small { display: block; font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .metric-badge strong { font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px; display: block; }
+  .metric-badge.warn { border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.05); }
+  .metric-badge.warn strong { color: var(--amber); }
+
+  .priority-banner {
+    margin-top: 14px; padding: 12px 18px; border-radius: 12px;
+    background: linear-gradient(90deg, rgba(251, 191, 36, 0.12) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.3); display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }
+  .priority-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 800; color: var(--amber); background: rgba(251, 191, 36, 0.15); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(251, 191, 36, 0.4); }
+  .priority-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
+  .status-badge { font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 5px; }
+  .sb-discussion { color: var(--amber); background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.4); }
+  .sb-confirmed { color: var(--emerald); background: rgba(52, 211, 153, 0.15); border: 1px solid rgba(52, 211, 153, 0.4); }
+  .sb-review { color: var(--rose); background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); }
+  .sb-core { color: var(--cyan); background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); }
+
+  .nav-bar {
+    display: flex; gap: 8px; overflow-x: auto; padding: 6px; border-radius: 14px;
+    background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border-glass); backdrop-filter: blur(12px); margin-top: 14px;
+  }
+  .nav-tab {
+    padding: 10px 18px; border-radius: 10px; font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--text-dim); text-decoration: none; border: 1px solid transparent; transition: all 0.2s ease; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  }
+  .nav-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
+  .nav-tab.active { color: #040711; background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 16px var(--cyan-glow); }
+  .nav-num { font-family: var(--font-mono); font-size: 10px; opacity: 0.8; }
+
+  .screen-container { margin-top: 24px; }
+  .screen { display: none; opacity: 0; transform: translateY(10px); transition: opacity 0.3s ease, transform 0.3s ease; }
+  .screen.active { display: block; opacity: 1; transform: translateY(0); animation: fadeIn 0.35s ease forwards; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .screen-title { display: flex; align-items: center; gap: 12px; }
+  .screen-badge { font-family: var(--font-mono); font-size: 11px; font-weight: 800; color: var(--cyan); background: rgba(56,189,248,0.1); border: 1px solid var(--border-highlight); padding: 4px 10px; border-radius: 8px; }
+  .screen-title h2 { font-family: var(--font-heading); font-size: 22px; font-weight: 700; color: var(--text-main); }
+  .screen-desc { font-size: 13px; color: var(--text-muted); font-weight: 400; }
+
+  .glass-card {
+    background: var(--panel-glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass); border-radius: 16px; padding: 20px; box-shadow: 0 16px 36px rgba(0,0,0,0.4); margin-bottom: 20px;
+  }
+  .card-topbar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--border-glass); font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); font-weight: 600; }
+
+  .hero-grid { display: grid; grid-template-columns: 2.8fr 1.2fr; gap: 16px; }
+  .hero-main-frame { position: relative; height: 420px; min-height: 320px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(56,189,248,0.3); box-shadow: 0 12px 30px rgba(0,0,0,0.6); }
+  .hero-main-frame img { width: 100%; height: 100%; object-fit: cover; object-position: center 48%; filter: brightness(0.88) contrast(1.05); }
+  .hero-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0; padding: 20px;
+    background: linear-gradient(0deg, rgba(4,7,17,0.95) 0%, rgba(4,7,17,0.7) 60%, transparent 100%);
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .hero-overlay h3 { font-family: var(--font-heading); font-size: 20px; font-weight: 700; color: #fff; margin-top: 6px; }
+  .hero-overlay p { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .negative-grid { display: flex; flex-direction: column; gap: 14px; }
+  .negative-card { position: relative; height: 203px; border-radius: 14px; overflow: hidden; border: 1px solid rgba(244,63,94,0.3); filter: grayscale(0.25) opacity(0.9); transition: all 0.2s ease; }
+  .negative-card.support { border-color: rgba(56,189,248,0.3); filter: none; }
+  .negative-card:hover { filter: grayscale(0) opacity(1); border-color: var(--rose); }
+  .negative-card img { width: 100%; height: 100%; object-fit: cover; }
+  .negative-tag { position: absolute; top: 10px; right: 10px; background: rgba(244,63,94,0.9); color: #fff; font-family: var(--font-body); font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.05em; }
+
+  .intent-vs-reality { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .intent-box { background: rgba(192,132,252,0.06); border: 1px solid rgba(192,132,252,0.25); border-radius: 12px; padding: 16px; }
+  .reality-box { background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.25); border-radius: 12px; padding: 16px; }
+  .box-title { font-family: var(--font-body); font-size: 12px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .intent-box .box-title { color: var(--violet); }
+  .reality-box .box-title { color: var(--amber); }
+
+  .thumb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .thumb-card { height: 110px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-glass); position: relative; }
+  .thumb-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+  .thumb-card:hover img { transform: scale(1.05); }
+
+  .ref-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+  .ref-item-card { background: var(--panel-raised); border: 1px solid var(--border-glass); border-radius: 14px; overflow: hidden; transition: all 0.25s ease; }
+  .ref-item-card:hover { transform: translateY(-3px); border-color: var(--border-highlight); box-shadow: 0 12px 24px rgba(0,0,0,0.5); }
+  .ref-img-wrap { height: 200px; position: relative; overflow: hidden; }
+  .ref-img-wrap img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+  .ref-item-card.crop-face .ref-img-wrap img { object-position: center 22%; }
+  .ref-item-card.crop-full .ref-img-wrap img { object-position: center 34%; }
+  .ref-item-card.crop-prop .ref-img-wrap img { object-position: center 62%; }
+  .ref-body { padding: 14px; }
+  .ref-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .ref-title { font-weight: 700; font-size: 15px; color: var(--text-main); }
+  .take-drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; font-size: 11px; background: rgba(15,23,42,0.6); padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+  .td-take b { color: var(--emerald); display: block; font-family: var(--font-body); font-size: 10px; margin-bottom: 2px; }
+  .td-drop b { color: var(--rose); display: block; font-family: var(--font-body); font-size: 10px; margin-bottom: 2px; }
+  .ref-meta-footer { display: flex; justify-content: space-between; margin-top: 12px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+
+  .role-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 16px; }
+  .role-card { background: var(--panel-raised); border: 1px solid var(--border-glass); border-radius: 12px; padding: 12px; text-align: center; }
+  .role-name { font-family: var(--font-body); font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 8px; }
+  .role-img { height: 160px; border-radius: 8px; overflow: hidden; margin-bottom: 10px; border: 1px solid var(--border-glass); }
+  .role-img img { width: 100%; height: 100%; object-fit: cover; }
+  .role-card.role-face .role-img img { object-position: center 22%; }
+  .role-card.role-full .role-img img { object-position: center 36%; }
+  .mobile-role-tabs { display: none; gap: 8px; margin-top: 12px; }
+  .mobile-role-tabs span { padding: 6px 10px; border: 1px solid var(--border-glass); border-radius: 8px; color: var(--text-muted); font-size: 11px; }
+  .mobile-role-tabs span.active { color: var(--cyan); border-color: var(--cyan); background: rgba(56,189,248,.08); }
+  .role-card.missing { border: 1px dashed rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.03); }
+  .role-card.missing .role-name { color: var(--amber); }
+
+  .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .ai-box { background: rgba(56, 189, 248, 0.04); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 14px; padding: 18px; }
+  .human-box { background: rgba(192, 132, 252, 0.04); border: 1px solid rgba(192, 132, 252, 0.25); border-radius: 14px; padding: 18px; }
+
+  .principle-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; margin-top: 16px; }
+  .principle-item { padding: 12px 14px; border-radius: 10px; background: var(--panel-raised); border: 1px solid var(--border-glass); margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease; }
+  .principle-item.active { background: rgba(56,189,248,0.12); border-color: var(--cyan); box-shadow: 0 0 12px var(--cyan-glow); }
+  .principle-evidence { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .principle-evidence figure { margin: 0; overflow: hidden; border: 1px solid var(--border-glass); border-radius: 10px; background: var(--panel-raised); }
+  .principle-evidence img { width: 100%; height: 110px; object-fit: cover; }
+  .principle-evidence figcaption { padding: 7px 9px; color: var(--text-muted); font-family: var(--font-mono); font-size: 10px; }
+  .check-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
+  .check-box { padding: 12px; border-radius: 10px; background: var(--panel-raised); border-top: 3px solid var(--text-muted); font-size: 11px; }
+  .check-box.blocking { border-top-color: var(--rose); background: rgba(244,63,94,0.06); }
+  .check-box.high { border-top-color: var(--amber); background: rgba(251,191,36,0.06); }
+  .check-box.checked { border-top-color: var(--emerald); background: rgba(52,211,153,0.06); }
+
+  .character-grid { display: grid; grid-template-columns: 2.8fr 1.2fr; gap: 16px; margin-top: 16px; }
+  .char-aspect-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; align-items: start; }
+  .aspect-card { border-radius: 12px; overflow: hidden; position: relative; border: 1px solid var(--border-glass); }
+  .aspect-card img { width: 100%; height: 100%; object-fit: cover; }
+  .aspect-card.face { grid-column: span 4; aspect-ratio: 4/5; }
+  .aspect-card.costume, .aspect-card.fullbody { grid-column: span 4; aspect-ratio: 3/4; }
+  .aspect-card.inspace { grid-column: span 8; aspect-ratio: 16/9; }
+  .aspect-card.prop { grid-column: span 4; aspect-ratio: 4/3; }
+  .aspect-card.face img { object-position: center 22%; }
+  .aspect-card.costume img { object-position: center 28%; }
+  .aspect-card.fullbody img { object-position: center 36%; }
+  .aspect-card.prop img { object-position: center 62%; }
+  .aspect-caption { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px; background: linear-gradient(transparent, rgba(4,7,17,0.95)); font-size: 12px; }
+
+  .impact-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px; }
+  .impact-card { background: var(--panel-raised); border-radius: 14px; padding: 16px; border-top: 4px solid var(--border-glass); }
+  .impact-card.affected { border-top-color: var(--amber); }
+  .impact-card.unaffected { border-top-color: var(--emerald); }
+  .impact-card.unknown { border-top-color: var(--rose); }
+  .impact-preview { display: grid; grid-template-columns: 84px 1fr; gap: 10px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-glass); }
+  .impact-preview img { width: 84px; height: 58px; border-radius: 7px; object-fit: cover; }
+  .impact-preview span { color: var(--text-muted); font-size: 10px; line-height: 1.45; }
+
+  .uid-pill { font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: var(--cyan); background: rgba(56,189,248,0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.3); }
+
+  @media(max-width: 960px) {
+    .topbar { grid-template-columns: 1fr; }
+    .hero-grid { grid-template-columns: 2.5fr 1fr; }
+    .character-grid { grid-template-columns: minmax(0, 3fr) minmax(190px, 1fr); }
+    .principle-layout { grid-template-columns: 220px 1fr; }
+    .ref-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .ref-img-wrap { height: 150px; }
+    .ref-body { padding: 9px; }
+    .ref-title { font-size: 12px; }
+    .take-drop-grid { padding: 7px; gap: 5px; }
+    .role-grid { grid-template-columns: 1fr 1fr; }
+    .role-card:nth-child(n+3) { display: none; }
+    .mobile-role-tabs { display: flex; }
+    .check-cards, .impact-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero-main-frame { height: 350px; }
+    .negative-card { height: 168px; }
+    .principle-evidence img { height: 78px; }
+    .impact-grid .impact-card:first-child { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="glow-orb-1"></div>
+<div class="glow-orb-2"></div>
+
+<div class="disclaimer-bar">
+  <span class="pulse-dot"></span>
+  <span>영화인 현장 친화적 직관 UX 정적 프로토타입 · 목표 모델 검수용이며 프로덕션 미연결</span>
+</div>
+
+<div class="wrap">
+  <!-- Header Card -->
+  <header class="header-card">
+    <div class="topbar">
+      <div>
+        <div class="brand-tag">SceneSync · 영화 기획 합의 워크벤치</div>
+        <div class="brand"><h1>숨을 세는 사람 (Breath Counter)</h1></div>
+      </div>
+      <div class="metric-badge warn">
+        <small>미결정 안건 (Decision Questions)</small>
+        <strong>3건 토론 중 · DQ-03 진행</strong>
+      </div>
+      <div class="metric-badge warn">
+        <small>원칙 수정 파급 검토 (Impact Scope)</small>
+        <strong>1 씬 · 2 컷 다시 검토 필요</strong>
+      </div>
+      <div class="metric-badge">
+        <small>도메인 상태 정합성</small>
+        <strong style="color:var(--emerald)">목표 상태 계약 시각화</strong>
+      </div>
+    </div>
+
+    <!-- Priority DQ Banner -->
+    <div class="priority-banner">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span class="priority-tag">💡 1순위 안건 · DQ-03</span>
+        <span class="priority-title">“서늘함”의 1순위 시각 기준은 인물 심리 억압입니까, 타일 질감입니까?</span>
+      </div>
+      <span class="status-badge sb-discussion">🟡 부서 간 토론 중</span>
+    </div>
+
+    <!-- Navigation Tabs (Filmmaker Intuitive Copywriting) -->
+    <nav class="nav-bar">
+      <button class="nav-tab active" data-view="spine" onclick="switchView('spine', this)"><span class="nav-num">01</span> 🎬 시그니처 톤 (Signature Tone)</button>
+      <button class="nav-tab" data-view="references" onclick="switchView('references', this)"><span class="nav-num">02</span> 🖼️ 레퍼런스 보관함 (Ref Library)</button>
+      <button class="nav-tab" data-view="comparison" onclick="switchView('comparison', this)"><span class="nav-num">03</span> 🎭 부서별 동상이몽 (5대 부서 비교)</button>
+      <button class="nav-tab" data-view="principles" onclick="switchView('principles', this)"><span class="nav-num">04</span> 📋 연출 원칙 확정 (Visual Principles)</button>
+      <button class="nav-tab" data-view="characters" onclick="switchView('characters', this)"><span class="nav-num">05</span> 👤 인물 연속성 락 (Character Lock)</button>
+      <button class="nav-tab" data-view="impact" onclick="switchView('impact', this)"><span class="nav-num">06</span> ⚡ 씬·컷 영향 추적 (Impact Tracker)</button>
+    </nav>
+  </header>
+
+  <!-- Main Dynamic Screens -->
+  <main class="screen-container">
+
+    <!-- SCREEN 1: 시그니처 톤 -->
+    <section class="screen active" id="screen-spine">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">01 메뉴</span>
+          <h2>01 시그니처 톤 (Signature Tone)</h2>
+        </div>
+        <span class="screen-desc">작품 전체를 대표하는 메인 이미지 및 배제 비주얼 설정</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>작품 대표 비주얼 톤 · Master Reference v1.1</span>
+          <span>감독 한지우 · 검토 진행 중</span>
+        </div>
+        <div class="hero-grid">
+          <div class="hero-main-frame">
+            <img src="assets/project_visual_workspace/woman-pool-wide.png" alt="폐수영장 안에 홀로 선 검은 옷의 여성">
+            <div class="hero-overlay">
+              <span class="status-badge sb-core">🟢 대표 메인 이미지</span>
+              <h3>푸른 새벽 틸 톤 · 공간이 인물을 누른다</h3>
+              <p>Hero Reference R-01 · 감독 선택 · 근거 발언 <span class="uid-pill">U21</span> <span class="uid-pill">U26</span> <span class="uid-pill">U27</span></p>
+            </div>
+          </div>
+          <div class="negative-grid">
+            <div class="negative-card support">
+              <img src="assets/project_visual_workspace/costume-midshot-pool.png" alt="젖은 수영장 가장자리에 선 검은 외투의 여성">
+              <span class="negative-tag" style="background:rgba(14,116,144,.92)">보조 인물 기준 · 의상/표정</span>
+            </div>
+            <div class="negative-card">
+              <img src="assets/project_visual_workspace/negative-glossy-commercial-pool.png" alt="금지 기준인 과채도 네온 상업 수영장">
+              <span class="negative-tag">❌ 절대 금지 · 과채도 상업 톤</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="intent-vs-reality">
+          <div class="intent-box">
+            <div class="box-title">🎬 감독 연출 의도 (Creative Intent)</div>
+            <p style="font-size:13px; color:var(--text-main);">죄책감이 공간을 누르고, 넓은 프레임 안에서 인물의 고립을 1순위로 강조한다. <span class="uid-pill">U21</span></p>
+          </div>
+          <div class="reality-box">
+            <div class="box-title">⚙️ 제작 현장 제약 (Production Reality)</div>
+            <p style="font-size:13px; color:var(--text-main);">수영장 전기 절연 및 안전 검측 전 세트 진입 불허. 천창 자연 광량 확보 40분 시간 제한.</p>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div style="font-family:var(--font-body); font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700;">시그니처 대표 콘티 컷 (SCENE 34 STORYBOARD)</div>
+          <div class="thumb-grid">
+            <div class="thumb-card"><img src="../../public/images/scene34_shot1.png" alt="Shot 1"></div>
+            <div class="thumb-card"><img src="../../public/images/scene34_shot2.png" alt="Shot 2"></div>
+            <div class="thumb-card"><img src="../../public/images/scene34_shot3.png" alt="Shot 3"></div>
+            <div class="thumb-card"><img src="../../public/images/scene34_shot4.png" alt="Shot 4"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 2: 레퍼런스 보관함 -->
+    <section class="screen" id="screen-references">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">02 메뉴</span>
+          <h2>02 레퍼런스 보관함 (Ref Library)</h2>
+        </div>
+        <span class="screen-desc">수집한 이미지 중 가져올 요소(Take)와 버릴 요소(Drop)를 정리</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>레퍼런스 자산 · 총 18건</span>
+          <span>승인된 이미지를 향후 Shot Recipe 자산으로 제공</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);padding:10px 12px;border:1px dashed var(--border-glass);border-radius:10px;background:rgba(15,23,42,.4)"><strong style="color:var(--cyan)">구현 분리 주석:</strong> 아래 6장은 실제 Reference 데이터 예시입니다. Loading / Error / Empty 상태 카드는 구현 단계에서 별도 상태 컴포넌트와 fixture로 분리합니다.</div>
+        <div class="ref-grid">
+          <div class="ref-item-card">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/woman-pool-wide.png" alt="폐수영장 안에 홀로 선 검은 옷의 여성"></div>
+            <div class="ref-body">
+              <div class="ref-header">
+                <span class="ref-title">World Tone · 고립된 와이드</span>
+                <span class="status-badge sb-core">🟢 핵심 반영</span>
+              </div>
+              <div class="take-drop-grid">
+                <div class="td-take"><b>🟢 TAKE (가져올 요소)</b>청색 톤·젖은 반사·고립감</div>
+                <div class="td-drop"><b>🔴 DROP (배제할 요소)</b>판타지 광원·영웅적 포즈</div>
+              </div>
+              <div class="ref-meta-footer"><span>SCENE 34</span><span>감독 한지우</span><span class="uid-pill">U21</span></div>
+            </div>
+          </div>
+          <div class="ref-item-card">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/pool-wide-environment.png" alt="차가운 푸른빛의 빈 실내 수영장"></div>
+            <div class="ref-body">
+              <div class="ref-header">
+                <span class="ref-title">Location · 낡은 실내 수영장</span>
+                <span class="status-badge sb-discussion">🟡 부분 반영</span>
+              </div>
+              <div class="take-drop-grid">
+                <div class="td-take"><b>🟢 TAKE (가져올 요소)</b>낡은 구조·빈 수조·타일 반사</div>
+                <div class="td-drop"><b>🔴 DROP (배제할 요소)</b>장식적 세트·과채도 곰팡이</div>
+              </div>
+              <div class="ref-meta-footer"><span>SCENE 34</span><span>미술감독</span><span class="uid-pill">U29</span></div>
+            </div>
+          </div>
+          <div class="ref-item-card crop-face">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/character-closeup-blue.png" alt="푸른 어둠 속 여성 인물 클로즈업"></div>
+            <div class="ref-body">
+              <div class="ref-header">
+                <span class="ref-title">Character Mood · 억제된 얼굴</span>
+                <span class="status-badge sb-discussion">🟡 부분 반영</span>
+              </div>
+              <div class="take-drop-grid">
+                <div class="td-take"><b>🟢 TAKE (가져올 요소)</b>절제된 표정·젖은 머리</div>
+                <div class="td-drop"><b>🔴 DROP (배제할 요소)</b>과장된 공포·설명적 감정</div>
+              </div>
+              <div class="ref-meta-footer"><span>SCENE 34</span><span>작가</span><span class="uid-pill">U41</span></div>
+            </div>
+          </div>
+          <div class="ref-item-card crop-full">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/character-fullbody-pool.png" alt="빈 수영장 공간 속 검은 옷의 전신 인물"></div>
+            <div class="ref-body"><div class="ref-header"><span class="ref-title">Full-body · 닫힌 실루엣</span><span class="status-badge sb-discussion">🟡 부분 반영</span></div><div class="take-drop-grid"><div class="td-take"><b>🟢 TAKE (가져올 요소)</b>어두운 의상·정지 자세</div><div class="td-drop"><b>🔴 DROP (배제할 요소)</b>극적인 액션·패션 포즈</div></div><div class="ref-meta-footer"><span>SCENE 34</span><span>제작PD</span><span class="uid-pill">U53</span></div></div>
+          </div>
+          <div class="ref-item-card crop-full">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/costume-midshot-pool.png" alt="젖은 수영장 가장자리의 검은 외투 여성"></div>
+            <div class="ref-body"><div class="ref-header"><span class="ref-title">Costume · 무채색 외투</span><span class="status-badge sb-discussion">🟡 부분 반영</span></div><div class="take-drop-grid"><div class="td-take"><b>🟢 TAKE (가져올 요소)</b>무광 검정·생활 주름</div><div class="td-drop"><b>🔴 DROP (배제할 요소)</b>광택 패션·과도한 장식</div></div><div class="ref-meta-footer"><span>SCENE 34</span><span>미술감독</span><span class="uid-pill">U57</span></div></div>
+          </div>
+          <div class="ref-item-card crop-prop">
+            <div class="ref-img-wrap"><img src="assets/project_visual_workspace/swim-cap-goggles-prop.png" alt="젖은 타일 위 흰 수영모와 고글"></div>
+            <div class="ref-body"><div class="ref-header"><span class="ref-title">Key Prop · 수영모와 고글</span><span class="status-badge sb-core">🟢 핵심 반영</span></div><div class="take-drop-grid"><div class="td-take"><b>🟢 TAKE (가져올 요소)</b>물기·낡은 실물감</div><div class="td-drop"><b>🔴 DROP (배제할 요소)</b>과도한 범죄 소품화</div></div><div class="ref-meta-footer"><span>SCENE 34</span><span>미술감독</span><span class="uid-pill">U64</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 3: 부서별 동상이몽 -->
+    <section class="screen" id="screen-comparison">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">03 메뉴</span>
+          <h2>03 부서별 동상이몽 (5대 부서 시각 비교)</h2>
+        </div>
+        <span class="screen-desc">동일 키워드에 대해 감독·촬영·미술·제작이 다르게 상상한 잔상 비교</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>비교 키워드: 서늘한 새벽 수영장</span>
+          <span>5개 부서 제출 · 역할별 서로 다른 시각 근거</span>
+        </div>
+        <div class="mobile-role-tabs"><span class="active">감독</span><span class="active">촬영감독</span><span>미술감독</span><span>제작PD</span><span>작가</span></div>
+        <div class="role-grid">
+          <div class="role-card">
+            <div class="role-name">🎬 감독</div>
+            <div class="role-img"><img src="assets/project_visual_workspace/woman-pool-wide.png" alt="넓은 폐수영장 안에 고립된 여성"></div>
+            <span class="status-badge sb-core">🟢 핵심 선택</span>
+          </div>
+          <div class="role-card">
+            <div class="role-name">🎥 촬영감독</div>
+            <div class="role-img"><img src="assets/project_visual_workspace/pool-wide-environment.png" alt="젖은 타일 반사가 드러난 빈 실내 수영장"></div>
+            <span class="status-badge sb-core">🟢 핵심 선택</span>
+          </div>
+          <div class="role-card">
+            <div class="role-name">🎨 미술감독</div>
+            <div class="role-img"><img src="assets/project_visual_workspace/swim-cap-goggles-prop.png" alt="젖은 타일 위 흰 수영모와 고글"></div>
+            <span class="status-badge sb-discussion">🟡 부분 선택</span>
+          </div>
+          <div class="role-card role-full">
+            <div class="role-name">⚙️ 제작PD</div>
+            <div class="role-img"><img src="assets/project_visual_workspace/character-fullbody-pool.png" alt="실제 수영장 규모와 함께 보이는 전신 여성"></div>
+            <span class="status-badge sb-discussion">⚪ 참고 이미지</span>
+          </div>
+          <div class="role-card role-face">
+            <div class="role-name">✍️ 작가</div>
+            <div class="role-img"><img src="assets/project_visual_workspace/character-closeup-blue.png" alt="감정을 억누른 여성 인물의 얼굴 클로즈업"></div>
+            <span class="status-badge sb-discussion">⚪ 참고 이미지</span>
+          </div>
+        </div>
+        <div class="role-card missing" style="margin-top:12px;text-align:left"><span class="role-name">⚠️ Missing role 예시 · VFX Supervisor</span><span style="font-size:11px;color:var(--text-muted)"> 역할 의견이 제출되지 않아 비교 판단에 포함하지 않음</span></div>
+
+        <div class="analysis-grid">
+          <div class="ai-box">
+            <div style="font-family:var(--font-body); font-size:12px; font-weight:700; color:var(--cyan); margin-bottom:8px;">🤖 AI 요약 분석 (갈등 및 공통점 도출)</div>
+            <p style="font-size:13px; color:var(--text-main); line-height:1.6;">
+              • <strong>공통점</strong>: 저채도 및 정적 조명 톤에 대해 4개 부서 동의.<br>
+              • <strong>차이점</strong>: 감독은 인물 고립감을 1순위로, 미술감독은 타일 텍스처를 1순위로 봄.<br>
+              • <strong>권한 경계</strong>: AI는 갈등 분석 및 질문 도출만 수행하며, 합의/승인 권한 없음.
+            </p>
+          </div>
+          <div class="human-box">
+            <div style="font-family:var(--font-body); font-size:12px; font-weight:700; color:var(--violet); margin-bottom:8px;">👤 인간 연출 결정 기록 (DQ-03)</div>
+            <p style="font-size:13px; color:var(--text-main); line-height:1.6;">
+              • <strong>결정자</strong>: 감독 한지우<br>
+              • <strong>결정 상태</strong>: <span class="status-badge sb-discussion">decided</span> ➔ 연출 원칙 후보(candidate) 생성<br>
+              • <strong>원칙</strong>: decided 처리되어도 제작 점검(Production Check) 및 인간 서명 승인 전 자동 confirmed 금지.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 4: 연출 원칙 확정 -->
+    <section class="screen" id="screen-principles">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">04 메뉴</span>
+          <h2>04 연출 원칙 확정 (Visual Principles)</h2>
+        </div>
+        <span class="screen-desc">14가지 제작 가능성 점검(안전·시간·예산)과 감독/제작PD 서명으로 확정</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>연출 원칙 항목 · VP-01</span>
+          <span>상태: 🔴 needs_review (재검토 필요)</span>
+        </div>
+        <div class="principle-layout">
+          <div>
+            <div class="principle-item active">
+              <div style="font-family:var(--font-mono); font-size:10px; color:var(--cyan); font-weight:700;">VP-01</div>
+              <strong style="font-size:13px;">제한된 인공 색채 & 틸 조명</strong>
+            </div>
+            <div class="principle-item">
+              <div style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted); font-weight:700;">VP-02</div>
+              <strong style="font-size:13px;">인물 심리 고립 렌즈 톤</strong>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:14px; font-weight:700; color:var(--text-main); margin-bottom:12px;">
+              "VP-01: 무채색 실내수영장에서 저채도 틸 조명을 유지하고 인물의 고립 손동작을 앵커로 삼는다"
+            </div>
+            <div style="font-family:var(--font-body); font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:700;">제작 가능성 14개 점검 (Production Check)</div>
+            <div class="check-cards">
+              <div class="check-box blocking">
+                <b style="color:var(--rose); display:block; margin-bottom:4px;">⛔ 제작 차단 (BLOCKING)</b>
+                전기 절연 서명 누락
+              </div>
+              <div class="check-box high">
+                <b style="color:var(--amber); display:block; margin-bottom:4px;">▲ 고위험 (HIGH RISK)</b>
+                망원 렌즈의 공간 압축, 심도와 초점 범위 설계
+              </div>
+              <div class="check-box high">
+                <b style="color:var(--amber); display:block; margin-bottom:4px;">▲ 고위험 (HIGH RISK)</b>
+                천창 자연 광량 40분
+              </div>
+              <div class="check-box checked">
+                <b style="color:var(--emerald); display:block; margin-bottom:4px;">✓ 점검 완료 (CHECKED)</b>
+                미술 곰팡이 텍스처
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 5: 인물 연속성 락 -->
+    <section class="screen" id="screen-characters">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">05 메뉴</span>
+          <h2>05 인물 연속성 락 (Character Lock)</h2>
+        </div>
+        <span class="screen-desc">character_id 정규화 기반 캐릭터 얼굴·의상·소품 연속성 고정</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>character_id: "c_01" (수현)</span>
+          <span>🔒 CONTINUITY LOCKED (연속성 고정)</span>
+        </div>
+        <div class="character-grid">
+          <div class="char-aspect-grid">
+            <div class="aspect-card face">
+              <img src="assets/project_visual_workspace/character-closeup-blue.png" alt="푸른 어둠 속 여성 인물 얼굴 마스터">
+              <div class="aspect-caption">
+                <span class="status-badge sb-core">🟢 얼굴 마스터 (Face Master)</span>
+                <strong>수현 · 기본 심리 톤 (고립감)</strong>
+              </div>
+            </div>
+            <div class="aspect-card costume">
+              <img src="assets/project_visual_workspace/costume-midshot-pool.png" alt="검은 의상이 드러나는 여성 인물 중간 이미지">
+              <div class="aspect-caption">
+                <span class="status-badge sb-core">🟢 의상/소품 마스터</span>
+                <strong>검은 의상 · 젖은 재질 기준</strong>
+              </div>
+            </div>
+            <div class="aspect-card fullbody">
+              <img src="assets/project_visual_workspace/character-fullbody-pool.png" alt="빈 수영장 공간 속 전신 인물">
+              <div class="aspect-caption">
+                <span class="status-badge sb-core">🟢 전신 마스터</span>
+                <strong>실루엣 · 신체 비율 기준</strong>
+              </div>
+            </div>
+            <div class="aspect-card inspace">
+              <img src="assets/project_visual_workspace/woman-pool-wide.png" alt="폐수영장 안에 홀로 선 검은 옷의 여성">
+              <div class="aspect-caption">
+                <span class="status-badge sb-core">🟢 공간 속 인물</span>
+                <strong>Scene 34 · 고립 구도 기준</strong>
+              </div>
+            </div>
+            <div class="aspect-card prop">
+              <img src="assets/project_visual_workspace/swim-cap-goggles-prop.png" alt="젖은 타일 위 수영모와 고글">
+              <div class="aspect-caption">
+                <span class="status-badge sb-core">🟢 핵심 소품</span>
+                <strong>수영모 · 고글 동일성 기준</strong>
+              </div>
+            </div>
+          </div>
+          <div style="background:var(--panel-raised); padding:16px; border-radius:12px; border:1px solid var(--border-glass);">
+            <div style="font-family:var(--font-body); font-size:12px; font-weight:700; color:var(--amber); margin-bottom:8px;">🔒 인물 연속성 락 (Continuity Lock)</div>
+            <ul style="font-size:11px; color:var(--text-dim); padding-left:16px; line-height:1.8;">
+              <li>face_silhouette: 얼굴 윤곽 고정</li>
+              <li>costume: 수영모 동일 제품 3벌 준비</li>
+              <li>eyeline: 클로즈업 시선 하향 고정</li>
+              <li>key_object: 조각 숨김 앵커 소품</li>
+              <li>screen_direction: 씬 34 우측 통행 동선</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREEN 6: 씬·컷 영향 추적 -->
+    <section class="screen" id="screen-impact">
+      <div class="screen-header">
+        <div class="screen-title">
+          <span class="screen-badge">06 메뉴</span>
+          <h2>06 씬·컷 영향 추적 (Impact Tracker)</h2>
+        </div>
+        <span class="screen-desc">상위 연출 원칙 변경 시 시스템이 계산한 파급 영향 확인</span>
+      </div>
+
+      <div class="glass-card">
+        <div class="card-topbar">
+          <span>변경 원칙: VP-01 (v1.0 ➔ v1.1 수정)</span>
+          <span>Deterministic System Link Graph 계산</span>
+        </div>
+        <div class="impact-grid">
+          <div class="impact-card affected">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:var(--amber);">⚠ SCENE 34 · SHOT 03, 04</span>
+              <span class="status-badge sb-review">🔴 review_required</span>
+            </div>
+            <p style="font-size:11px; color:var(--text-dim);">명시적으로 연결된 승인 대상이므로 영향 받음.<br>Scene → review_required · approved Shot → restale</p>
+            <div class="impact-preview"><img src="assets/project_visual_workspace/woman-pool-wide.png" alt="Scene 34 미리보기"><span>미리보기는 대상 식별용이며 영향 판정 근거가 아닙니다.</span></div>
+          </div>
+          <div class="impact-card unaffected">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:var(--emerald);">✓ SCENE 12 (모텔방)</span>
+              <span class="status-badge sb-confirmed">🟢 unaffected</span>
+            </div>
+            <p style="font-size:11px; color:var(--text-dim);">명시적 범위를 검토했으며 VP-01과 무관함.<br>기존 상태 유지 · 상태 전파 없음</p>
+            <div class="impact-preview"><img src="assets/project_visual_workspace/scene12-motel-room-preview.png" alt="Scene 12 모텔방 미리보기"><span>미리보기는 대상 식별용이며 영향 판정 근거가 아닙니다.</span></div>
+          </div>
+          <div class="impact-card unknown">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:var(--rose);">? LEGACY SHOT L-07</span>
+              <span class="status-badge sb-review">⚪ unknown</span>
+            </div>
+            <p style="font-size:11px; color:var(--text-dim);">명시적 링크가 없어 자동 판정할 수 없음.<br>상태 유지 · 인간 검토 필요</p>
+            <button type="button" style="margin-top:10px; padding:8px 10px; border-radius:7px; border:1px solid var(--rose); background:rgba(244,63,94,.08); color:#fecdd3; font-weight:700;">링크 확인 · 인간 검토 열기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  function switchView(viewId, tabBtn) {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tabBtn.classList.add('active');
+
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+
+    const targetScreen = document.getElementById('screen-' + viewId);
+    if(targetScreen) {
+      targetScreen.classList.add('active');
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', viewId);
+      history.replaceState(null, '', url);
+    }
+  }
+
+  const requestedView = new URLSearchParams(window.location.search).get('view') || 'spine';
+  const requestedTab = document.querySelector('.nav-tab[data-view="' + requestedView + '"]');
+  if (requestedTab) switchView(requestedView, requestedTab);
+</script>
+
+</body>
+</html>

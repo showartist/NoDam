@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9a3412"/>
+      <stop offset="60%" stop-color="#7c2d12"/>
+      <stop offset="100%" stop-color="#18181b"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg5)"/>
+  <!-- 성문 위 태양 빛 -->
+  <circle cx="400" cy="200" r="120" fill="#fde047" opacity="0.3"/>
+  <path d="M 250 450 L 320 280 L 480 280 L 550 450 Z" fill="#090d16"/>
+  <!-- 우뚝 선 붉은 깃발 -->
+  <polygon points="400,120 540,160 400,220" fill="#b91c1c"/>
+  <line x1="400" y1="80" x2="400" y2="350" stroke="#f59e0b" stroke-width="8"/>
+  <text x="40" y="65" font-family="-apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff">SCENE 05: 귀환 (용인으로)</text>
+  <text x="40" y="98" font-family="-apple-system, sans-serif" font-size="16" fill="#fed7aa">붉은 만장이 고향 성문 위로 다시 올라간다</text>
+</svg>

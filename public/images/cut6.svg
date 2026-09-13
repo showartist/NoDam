@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <rect width="800" height="450" fill="#090d16"/>
+  <!-- 무채색 흑백 무대 시안 -->
+  <rect x="100" y="80" width="600" height="300" fill="#18181b" stroke="#27272a" stroke-width="2"/>
+  <!-- 붉은색 하나만 오롯이 돋보이는 깃발 아트워크 -->
+  <path d="M 380 180 C 440 150, 480 220, 520 170 L 500 250 C 450 270, 410 210, 380 230 Z" fill="#ef4444"/>
+  <text x="40" y="65" font-family="-apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff">SCENE 06: 마무리 (여운)</text>
+  <text x="40" y="98" font-family="-apple-system, sans-serif" font-size="16" fill="#e2e8f0">새로운 시작을 알리며 이야기가 여운 속에 마무리된다</text>
+</svg>

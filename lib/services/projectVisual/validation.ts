@@ -1,0 +1,12 @@
+import type { DecisionQuestionState } from "../../domain/projectVisual";
+import { ProjectVisualServiceError } from "./errors";
+const ID=/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+export function id(value:unknown,label:string):string{if(typeof value!=="string"||!ID.test(value))throw new ProjectVisualServiceError("VALIDATION_ERROR",`${label} is invalid`);return value;}
+export function text(value:unknown,label:string):string{if(typeof value!=="string"||!value.trim()||value.length>5000)throw new ProjectVisualServiceError("VALIDATION_ERROR",`${label} is invalid`);return value.trim();}
+export function asset(value:unknown):string|null{if(value===null||value===undefined||value==="")return null;if(typeof value!=="string"||value.length>2048||/^(data|file):/i.test(value)||value.startsWith("/Users/"))throw new ProjectVisualServiceError("VALIDATION_ERROR","assetUri must be an HTTP(S) URL or logical relative path");try{const parsed=new URL(value);if(!["http:","https:"].includes(parsed.protocol))throw new Error();}catch{if(/^[a-z][a-z0-9+.-]*:/i.test(value)||value.startsWith(".."))throw new ProjectVisualServiceError("VALIDATION_ERROR","assetUri must be an HTTP(S) URL or logical relative path");}return value;}
+const STATES:DecisionQuestionState[]=["open","discussion","decision_proposed","decided","reopened"];
+export function questionState(value:unknown):DecisionQuestionState{if(!STATES.includes(value as DecisionQuestionState))throw new ProjectVisualServiceError("VALIDATION_ERROR","decision question state is invalid");return value as DecisionQuestionState;}
+export function role(value:unknown):"director"|"producer"{if(value!=="director"&&value!=="producer")throw new ProjectVisualServiceError("VALIDATION_ERROR","approval role is invalid");return value;}
+export function choice<T extends string>(value:unknown,values:readonly T[],label:string):T{if(!values.includes(value as T))throw new ProjectVisualServiceError("VALIDATION_ERROR",`${label} is invalid`);return value as T;}
+export function positiveInteger(value:unknown,label:string):number{if(!Number.isInteger(value)||Number(value)<1)throw new ProjectVisualServiceError("VALIDATION_ERROR",`${label} must be a positive integer`);return Number(value);}
+export function timestamp(value:unknown,label:string):string{const result=text(value,label);if(Number.isNaN(Date.parse(result)))throw new ProjectVisualServiceError("VALIDATION_ERROR",`${label} must be an ISO timestamp`);return result;}

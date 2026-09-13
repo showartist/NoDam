@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <radialGradient id="bg3" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#7f1d1d"/>
+      <stop offset="60%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#090d16"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg3)"/>
+  <!-- 인물 A 대립 Silhouette -->
+  <path d="M 220 220 L 260 170 L 300 220 L 280 380 L 240 380 Z" fill="#000000"/>
+  <!-- 인물 B 대립 Silhouette -->
+  <path d="M 580 220 L 540 170 L 500 220 L 520 380 L 560 380 Z" fill="#000000"/>
+  <!-- 충돌하는 붉은 불꽃 & 에너지 -->
+  <polygon points="400,100 430,220 370,220" fill="#f97316"/>
+  <polygon points="400,380 440,240 360,240" fill="#ef4444"/>
+  <circle cx="400" cy="230" r="45" fill="#fcd34d" opacity="0.8"/>
+  <text x="40" y="65" font-family="-apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff">SCENE 03: 충돌 (인물 간 신념)</text>
+  <text x="40" y="98" font-family="-apple-system, sans-serif" font-size="16" fill="#fca5a5">서로 다른 신념이 충돌하고 긴장이 최고조에 오른다</text>
+</svg>

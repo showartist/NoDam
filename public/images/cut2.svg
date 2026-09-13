@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#451a03"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="flagWave" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="50%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg2)"/>
+  <!-- 바람 효과 & 파동 -->
+  <path d="M 50 100 Q 300 200 750 80" stroke="#f97316" stroke-width="3" opacity="0.3" fill="none"/>
+  <path d="M 80 180 Q 400 300 720 160" stroke="#f97316" stroke-width="2" opacity="0.2" fill="none"/>
+  <!-- 거대 만장 깃발 -->
+  <path d="M 200 120 C 350 60, 500 220, 750 100 L 720 320 C 480 400, 320 200, 200 300 Z" fill="url(#flagWave)"/>
+  <line x1="200" y1="80" x2="200" y2="400" stroke="#b45309" stroke-width="10"/>
+  <!-- 군중 Silhouette -->
+  <circle cx="150" cy="390" r="25" fill="#18181b"/>
+  <circle cx="230" cy="380" r="30" fill="#090d16"/>
+  <circle cx="310" cy="400" r="28" fill="#18181b"/>
+  <circle cx="400" cy="385" r="32" fill="#090d16"/>
+  <text x="40" y="65" font-family="-apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff">SCENE 02: 만장 등장</text>
+  <text x="40" y="98" font-family="-apple-system, sans-serif" font-size="16" fill="#fed7aa">붉은 만장이 바람에 휘날리며 군중 앞에 모습을 드러낸다</text>
+</svg>

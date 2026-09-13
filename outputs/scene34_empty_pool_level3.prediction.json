@@ -1,0 +1,52 @@
+{
+  "fixture_id": "scene34_empty_pool_level3",
+  "model": "claude-3-5-sonnet-20241022",
+  "run_id": "run_20260801_107_utterances",
+  "issues": [
+    {
+      "subject_key": "suhyeon_facial_expression",
+      "detection_signal": "explicit_opposition",
+      "issue_type": "interpretation_gap",
+      "state": "unresolved",
+      "severity": "high",
+      "evidence": ["U04", "U05", "U07", "U08", "U09"],
+      "question": "수현의 표정 톤은 서늘한 무표정입니까, 미세한 반응/실소입니까?"
+    },
+    {
+      "subject_key": "water_insulation_crane_safety",
+      "detection_signal": "creative_production_clash",
+      "issue_type": "missing_information",
+      "state": "unresolved",
+      "severity": "critical",
+      "evidence": ["U17", "U18", "U20", "U34", "U37"],
+      "question": "젖은 바닥 전원 케이블 절연 검측 및 크레인 승인 안전 차단 건"
+    },
+    {
+      "subject_key": "tag_tearing_insert_coverage",
+      "detection_signal": "intent_coverage_gap",
+      "issue_type": "missing_information",
+      "state": "unresolved",
+      "severity": "high",
+      "evidence": ["U04", "U17", "U18", "U27", "U28", "U60", "U61", "U62", "U63", "U64"],
+      "question": "이름표 뜯어 숨기기 행동에 대한 1:1 전담 Insert 컷 누락 건"
+    },
+    {
+      "subject_key": "actor_barefoot_tile_safety",
+      "detection_signal": "term_divergence",
+      "issue_type": "missing_information",
+      "state": "unresolved",
+      "severity": "medium",
+      "evidence": ["U95", "U97", "U98"],
+      "question": "배우 맨발 걷기 연출과 타일 파손/유리 조각 안전 검측 건"
+    },
+    {
+      "subject_key": "blue_lighting_and_fungus_tile",
+      "detection_signal": "term_divergence",
+      "issue_type": "interpretation_gap",
+      "state": "unresolved",
+      "severity": "medium",
+      "evidence": ["U27", "U28", "U29", "U30", "U31"],
+      "question": "푸른 새벽 조명과 타일 곰팡이 미장센 톤 차이 건 (오탐 시뮬레이션)"
+    }
+  ]
+}

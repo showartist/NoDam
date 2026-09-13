@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="450" fill="url(#bg4)"/>
+  <!-- 객석 통로 대각선 리드 라인 -->
+  <polygon points="100,450 300,450 550,0 450,0" fill="#dc2626" opacity="0.8"/>
+  <path d="M 0 300 L 800 150" stroke="#fbbf24" stroke-width="4" stroke-dasharray="10 5"/>
+  <text x="40" y="65" font-family="-apple-system, sans-serif" font-size="28" font-weight="900" fill="#ffffff">SCENE 04: 이동 (객석 통로 확장)</text>
+  <text x="40" y="98" font-family="-apple-system, sans-serif" font-size="16" fill="#c7d2fe">동지를 이끌고 객석 통로 전체로 향한다</text>
+</svg>

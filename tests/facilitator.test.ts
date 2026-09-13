@@ -1,0 +1,21 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {assessReview,selectWindow,FacilitatorConfig,type Turn,type WindowInput,type ModelReview} from '../lib/facilitator/policy';
+const turns:Turn[]=[{uid:'U1',text:'오늘은 책상 배치를 결정합니다.',speakerKey:'S1',startMs:0,endMs:10000},{uid:'U2',text:'주말에 축구를 봤어요.',speakerKey:'S1',startMs:60000,endMs:80000},{uid:'U3',text:'다음 축구 경기는 언제죠?',speakerKey:'S2',startMs:180000,endMs:210000}];
+const input:WindowInput={goal:'사무실 책상 배치를 결정한다',fromMs:0,toMs:300000,partial:false,prior:[],current:turns};
+const review:ModelReview={focus:'detour',latestRelation:'off_topic',summary:'축구 이야기가 이어짐',findings:[{kind:'topic_drift',summary:'주제 이탈 후보',question:'책상 배치 논의로 돌아갈까요?',evidence:[{uid:'U2',quote:'주말에 축구를 봤어요.',context:'current',role:'signal'},{uid:'U3',quote:'다음 축구 경기는 언제죠?',context:'current',role:'signal'}]}]};
+const clone=()=>structuredClone(review);
+test('synthetic: sustained detour yields grounded question, no score',()=>{const a=assessReview(review,input,[],300000);assert.equal(a.notification?.kind,'topic_drift');assert.equal('score' in a,false);});
+test('synthetic: brief aside is held',()=>{const x={...input,current:turns.map(t=>t.uid==='U3'?{...t,startMs:85000,endMs:90000}:t)};assert.equal(assessReview(review,x,[],300000).notification,null);});
+test('synthetic: quoted historical fight/aside is not a current warning',()=>{const r=clone();r.findings[0].evidence[0].context='example';assert.equal(assessReview(r,input,[],300000).notification,null);});
+test('synthetic: return to topic suppresses stale drift warning',()=>{const r=clone();r.latestRelation='on_topic';assert.equal(assessReview(r,input,[],300000).notification,null);});
+test('synthetic: different speakers are not a self contradiction',()=>{const r=clone();r.findings[0].kind='inconsistency';assert.equal(assessReview(r,input,[],300000).notification,null);});
+test('synthetic: one source repeated is insufficient',()=>{const r=clone();r.findings[0].evidence[1]=r.findings[0].evidence[0];assert.equal(assessReview(r,input,[],300000).notification,null);});
+test('synthetic: changed quote is rejected, not silently rewritten',()=>{const r=clone();r.findings[0].evidence[0].quote='다른 말';assert.throws(()=>assessReview(r,input,[],300000),/원문 인용/);});
+test('synthetic: stale kind is cooled down for two intervals',()=>assert.equal(assessReview(review,{...input,toMs:600000},[{atMs:300000,kind:'topic_drift'}],300000).notification,null));
+test('synthetic: finish review never sends live notification',()=>assert.equal(assessReview(review,{...input,partial:true},[],300000).notification,null));
+test('synthetic: future/incomplete turns never enter a window',()=>{const s=selectWindow([...turns,{...turns[0],uid:'future',endMs:310000},{...turns[0],uid:'unknown',endMs:null}],0,300000);assert.deepEqual(s.current.map(t=>t.uid),['U1','U2','U3']);});
+test('configuration is explicit, not arbitrary minute/empty goal',()=>{assert.equal(FacilitatorConfig.safeParse({goal:'짧음',intervalMinutes:5}).success,false);assert.equal(FacilitatorConfig.safeParse({goal:input.goal,intervalMinutes:4}).success,false);});
+
+test('synthetic: a normal baseline cannot inflate detour duration',()=>{const r=clone();r.findings[0].evidence[0].role='baseline';assert.equal(assessReview(r,input,[],300000).notification,null);});
+test('synthetic: chunk-local speaker IDs do not prove different people across chunks',()=>{const r=clone();r.findings[0].kind='meaning_gap';const x={...input,current:turns.map((t,i)=>({...t,speakerKey:`C${i+1}-SPEAKER_01`}))};assert.equal(assessReview(r,x,[],300000).notification,null);});

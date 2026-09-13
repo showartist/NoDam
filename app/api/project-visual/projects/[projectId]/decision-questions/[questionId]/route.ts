@@ -1,0 +1,4 @@
+import { getProjectVisualService,ProjectVisualServiceError } from "@/lib/services/projectVisual";
+import { handle,json } from "../../../../http";
+type Params={projectId:string;questionId:string};
+export async function PATCH(request:Request,{params}:{params:Promise<Params>}){return handle(async()=>{const[p,body]=await Promise.all([params,json(request)]);const service=getProjectVisualService();if(body.action==="decide")return service.decideQuestion({projectId:p.projectId,questionId:p.questionId,decidedOption:body.decidedOption,decidedBy:body.decidedBy,decidedAt:body.decidedAt??new Date().toISOString(),candidate:body.candidate});if(body.action==="set_state")return service.updateDecisionQuestionState({projectId:p.projectId,questionId:p.questionId,state:body.state});throw new ProjectVisualServiceError("VALIDATION_ERROR","Unsupported decision question action");});}

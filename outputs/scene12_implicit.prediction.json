@@ -1,0 +1,52 @@
+{
+  "fixture_id": "scene12_implicit",
+  "model": "claude-3-5-sonnet-20241022",
+  "run_id": "run_20260801_01",
+  "issues": [
+    {
+      "subject_key": "yoonseo_final_expression",
+      "detection_signal": "explicit_opposition",
+      "issue_type": "interpretation_gap",
+      "state": "unresolved",
+      "severity": "high",
+      "evidence": ["U07", "U08", "U09", "U10"],
+      "question": "윤서의 마지막 표정은 눈물인가 억제인가?"
+    },
+    {
+      "subject_key": "set_wall_rigging_safety",
+      "detection_signal": "creative_production_clash",
+      "issue_type": "missing_information",
+      "state": "unresolved",
+      "severity": "critical",
+      "evidence": ["U34", "U35"],
+      "question": "세트 벽 하중 검토 건"
+    },
+    {
+      "subject_key": "shoelace_insert_shot",
+      "detection_signal": "intent_coverage_gap",
+      "issue_type": "missing_information",
+      "state": "unresolved",
+      "severity": "high",
+      "evidence": ["U11", "U37", "U38"],
+      "question": "신발끈 컷 누락 건"
+    },
+    {
+      "subject_key": "sneakers_continuity",
+      "detection_signal": "term_divergence",
+      "issue_type": "historical_conflict",
+      "state": "unresolved",
+      "severity": "medium",
+      "evidence": ["U32", "U33"],
+      "question": "운동화 연속성 건"
+    },
+    {
+      "subject_key": "cold_tone_interpretation",
+      "detection_signal": "term_divergence",
+      "issue_type": "interpretation_gap",
+      "state": "unresolved",
+      "severity": "medium",
+      "evidence": ["U19", "U20"],
+      "question": "차가운 톤 해석 갈등 건 (오탐 시뮬레이션)"
+    }
+  ]
+}

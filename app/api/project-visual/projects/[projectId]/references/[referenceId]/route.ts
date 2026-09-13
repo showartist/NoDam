@@ -1,0 +1,6 @@
+import { getProjectVisualService,ProjectVisualServiceError } from "@/lib/services/projectVisual";
+import { handle,json } from "../../../../http";
+type Params={projectId:string;referenceId:string};
+export async function GET(_:Request,{params}:{params:Promise<Params>}){return handle(async()=>{const p=await params;return getProjectVisualService().getReference(p.projectId,p.referenceId);});}
+export async function PATCH(request:Request,{params}:{params:Promise<Params>}){return handle(async()=>{const[p,body]=await Promise.all([params,json(request)]);return getProjectVisualService().updateReference({id:p.referenceId,projectId:p.projectId,title:body.title,sourceMethod:body.sourceMethod,contentType:body.contentType,adoptionLevel:body.adoptionLevel,referenceImageState:body.referenceImageState,assetUri:body.assetUri,take:body.take,drop:body.drop,responsibleRole:body.responsibleRole,evidence:body.evidence,versionLabel:body.versionLabel});});}
+export async function POST(request:Request,{params}:{params:Promise<Params>}){return handle(async()=>{const[p,body]=await Promise.all([params,json(request)]);if(body.action!=="link_scene")throw new ProjectVisualServiceError("VALIDATION_ERROR","Unsupported reference action");return getProjectVisualService().linkReferenceToScene(p.projectId,p.referenceId,body.sceneId);});}

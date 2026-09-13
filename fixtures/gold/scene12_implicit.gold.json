@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "target_input": "scene12_implicit.json",
+    "level": "Level 2 Gold Label",
+    "description": "Level 2 회의록 기준 정답지"
+  },
+  "expected_issues": [
+    {
+      "subject_key": "yoonseo_final_expression",
+      "signal": "explicit_opposition",
+      "issue_type": "interpretation_gap",
+      "subject": "윤서의 마지막 표정 (눈물 한 방울 vs 서늘한 억제)",
+      "question": "윤서의 마지막 표정은 눈물입니까, 억제입니까?",
+      "evidence": ["U07", "U08", "U09", "U10"],
+      "expected_state": "unresolved",
+      "severity": "high"
+    },
+    {
+      "subject_key": "set_wall_rigging_safety",
+      "signal": "creative_production_clash",
+      "issue_type": "missing_information",
+      "subject": "세트 벽체 조명 리깅 하중 안전 검토",
+      "question": "세트 벽체가 조명 리깅 하중을 견딥니까?",
+      "evidence": ["U34", "U35"],
+      "expected_state": "unresolved",
+      "severity": "critical"
+    },
+    {
+      "subject_key": "shoelace_insert_shot",
+      "signal": "intent_coverage_gap",
+      "issue_type": "missing_information",
+      "subject": "핵심 행동(신발끈 묶기) 1:1 Insert Shot 누락",
+      "question": "신발끈 묶기 컷 누락을 어떻게 처리합니까?",
+      "evidence": ["U11", "U37", "U38"],
+      "expected_state": "unresolved",
+      "severity": "high"
+    },
+    {
+      "subject_key": "sneakers_continuity",
+      "signal": "term_divergence",
+      "issue_type": "historical_conflict",
+      "subject": "7씬 vs 12씬 낡은 운동화 소품 연속성 일치 여부",
+      "question": "7씬 운동화 상태와 12씬 신발끈 상태가 일치합니까?",
+      "evidence": ["U32", "U33"],
+      "expected_state": "unresolved",
+      "severity": "medium"
+    }
+  ],
+  "expected_non_issues": [
+    {
+      "id": "NI-01",
+      "subject_key": "cold_tone_interpretation",
+      "subject": "차가운 연기 톤과 블루 색온도/대사 축소의 조율",
+      "evidence": ["U19", "U20", "U21", "U22"],
+      "reason": "감독의 요청에 촬영과 작가가 각각 해법을 제안하고 감독이 둘 다 최종 승인함",
+      "forbidden_open_signals": ["term_divergence", "interpretation_gap"]
+    },
+    {
+      "id": "NI-02",
+      "subject_key": "neon_sign_budget_resolution",
+      "subject": "네온 특수 간판 200만 원 예산 조율",
+      "evidence": ["U28", "U29", "U30", "U31"],
+      "reason": "제작PD의 200만 원 예산 요구에 감독이 조율 조건으로 승인하고 PD가 조명 렌탈 감축안을 제시하여 즉시 합의됨",
+      "forbidden_open_signals": ["creative_production_clash", "constraint_conflict"]
+    }
+  ]
+}
