@@ -7,6 +7,7 @@ export const Command = z.discriminatedUnion("action", [
   z.object({ action: z.literal("participant"), name: text(80), role: z.string().trim().max(100) }),
   z.object({ action: z.literal("question"), question: text(500), evidence: z.array(evidence).min(1).max(8) }),
   z.object({ action: z.literal("import"), reviewId: z.number().int().positive(), findingIndex: z.number().int().min(0).max(3) }),
+  z.object({ action: z.literal("import_analysis"), runId: text(100), issueId: text(100) }),
   z.object({ action: z.literal("comparison"), questionId: text(100), expression: text(200), decisionTarget: text(500) }),
   z.object({ action: z.literal("interpretation"), questionId: text(100), participantId: text(100), meaning: text(1000), example: z.string().trim().max(1000), conditions: z.string().trim().max(1000), confirmedByParticipant: z.literal(true) }),
   z.object({ action: z.literal("synthesis"), questionId: text(100), relation: z.enum(["same", "complementary", "choice", "unresolved"]), sharedConditions: text(1500), remainingDifferences: z.string().trim().max(1000) }),
@@ -27,15 +28,16 @@ export type CommandInput = z.infer<typeof Command>;
 export type Participant = { id: string; name: string; role: string };
 export type Comparison = {
   expression: string; decisionTarget: string;
-  interpretations: { participantId: string; meaning: string; example: string; conditions: string; confirmedByParticipant: true; recordedAt: string }[];
+  interpretations: { participantId: string; meaning: string; example: string; conditions: string; confirmedByParticipant: true; recordedVia?: "personal_link" | "facilitator"; recordedAt: string }[];
   synthesis: { relation: "same" | "complementary" | "choice" | "unresolved"; sharedConditions: string; remainingDifferences: string } | null;
 };
 export type Question = {
   id: string; question: string; evidence: { uid: string; quote: string }[];
   source: { reviewId: number; findingIndex: number } | null;
+  analysisSource?: { runId: string; issueId: string };
   comparison?: Comparison;
   proposal: string; proposalRevision: number;
-  responses: { participantId: string; stance: "agree" | "agree_with_concerns" | "disagree" | "uncertain"; understanding: string; concern?: string; proposalRevision: number; recordedAt: string }[];
+  responses: { participantId: string; stance: "agree" | "agree_with_concerns" | "disagree" | "uncertain"; understanding: string; concern?: string; proposalRevision: number; recordedVia?: "personal_link" | "facilitator"; recordedAt: string }[];
   task: { ownerId: string; dueDate: string | null; criteria: string; done: boolean } | null;
   feedback: { verdict: "valid" | "false_alarm" | "uncertain"; reason: string } | null;
   confirmedAt: string | null; participantsAtConfirmation: Participant[];

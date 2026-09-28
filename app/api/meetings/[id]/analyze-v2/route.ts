@@ -1,3 +1,4 @@
+import {AnalysisBusyError,recoverAnalysisJobs,analysisScope} from "@/lib/alignment/jobs";
 import { NextResponse } from "next/server";
 import { summarizeAlignmentReview } from "@/lib/analysis/reviewSummary";
 import { getMeetingUtterances } from "@/lib/alignment/store";
@@ -15,6 +16,7 @@ export const maxDuration = 600;
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const body = (await req.json().catch(() => ({}))) as { contextCheck?: boolean; model?: string; confirmReplace?: boolean };
+  recoverAnalysisJobs(id);
   const current = getCurrentRun(id);
   if (current && !body.confirmReplace) {
     const touched = humanTouchedCount(current.id);
@@ -34,6 +36,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const r = await runBatchAnalysis(id, { model: body.model, contextCheck: body.contextCheck === false ? false : {} });
     return NextResponse.json({ status: "completed", ...r });
   } catch (e) {
+    if(e instanceof AnalysisBusyError)return NextResponse.json({error:e.message},{status:409});
     const err = e instanceof AnalysisV2Error ? e : null;
     const code = err?.code ?? "LLM_FAILED";
     const status = code === "NO_INPUT" ? 422 : code === "NOT_CONFIGURED" ? 503 : 502;
@@ -44,12 +47,14 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
 /** GET — 현재 run 의 안건·합의. 돌린 적이 없으면 not_run. 예시 결과를 만들지 않는다. */
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
+  recoverAnalysisJobs(id);
   const run = getCurrentRun(id, { includeRunning: true });
   const runs = listRuns(id).map((r) => ({ id: r.id, mode: r.mode, status: r.status, model: r.model, created_at: r.created_at, error: r.error }));
   if (!run) return NextResponse.json({ status: "not_run", issues: [], agreements: [], runs });
   const issues = listIssues(id, run.id);
   const utts = Object.fromEntries(getMeetingUtterances(id).map(u => [u.uid, { uid: u.uid, who: u.speakerName ?? u.speakerKey ?? "화자 미상", text: u.text }]));
   return NextResponse.json({
+    scope: analysisScope(run.id)??null,
     review: summarizeAlignmentReview(issues),
     utts,
     status: run.status,

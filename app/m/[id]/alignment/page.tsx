@@ -1,3 +1,4 @@
+import IntakeNotice from "@/app/components/IntakeNotice";
 import React from "react";
 import { notFound } from "next/navigation";
 import { HeaderNavStepper } from "@/app/components/HeaderNavStepper";
@@ -28,6 +29,7 @@ export default async function AlignmentPage({ params }: { params: Promise<{ id: 
         slugline={data.scene.slugline ?? undefined}
         oneLiner={data.scene.oneLiner ?? undefined}
       />
+      <IntakeNotice meetingId={id} />
       <div className={s.wrap}>
         <ReviewBoardV2
           meetingId={id}

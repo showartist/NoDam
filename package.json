@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3210",
     "seed": "node scripts/build-fixture.mjs",
-    "test": "node --experimental-strip-types tests/normalize-evidence.test.mjs && node --experimental-strip-types tests/migrate-scene-brief.test.mjs && node --experimental-strip-types tests/scenenote-contract.mjs && tsx --test tests/project_visual_domain_contract.test.ts tests/image_generation_strategy.test.ts tests/collaborative_visual_synthesis.test.ts tests/sprint1_alignment_check.test.ts tests/sprint2_exploration_comparison.test.ts tests/sprint3_resolution_production.test.ts tests/sqlite_persistence_contract.test.ts tests/vertical_core_mvp_e2e.test.ts && tsx --test tests/project_visual_service.test.ts tests/project_visual_no_cross_project_fallback.test.ts tests/subtitle_to_transcript.test.ts tests/decision_to_image_domain.test.ts tests/project_visual_api.test.ts && tsx --test tests/project_visual_workspace_components.test.tsx && tsx --test tests/project_visual_write_contract.test.ts && tsx --test tests/stt_diarization.test.ts && tsx --test tests/shot_recipe_domain.test.ts tests/shot_recipe_service.test.ts tests/shot_recipe_api.test.ts && npm run test:repository && tsx lib/project_dev_integrity_contract.test.ts && tsx lib/transcript_linkage_contract.test.ts && tsx lib/scene_integrity_contract.test.ts && tsx lib/transcript_navigation_contract.test.ts && tsx lib/ui_render_contract.test.ts && tsx lib/selective_cascade.test.ts && tsx lib/project_development.test.ts && tsx lib/project_dev_e2e.test.ts && tsx lib/project_dev_safety.test.ts && tsx lib/score.test.ts && tsx --test tests/capstone_core.test.ts tests/capstone_audio.test.ts && tsx --test tests/alignment_v2.test.ts && tsx --test tests/pipeline_v2.test.ts && tsx --test tests/characters.test.ts && tsx --test tests/images_pipeline.test.ts && node tests/wiring-contract.mjs --static-only && tsx --test tests/facilitator.test.ts tests/live_facilitator_runtime.test.ts tests/live_sharing_runtime.test.ts tests/meeting_decisions_runtime.test.ts",
+    "test": "node --experimental-strip-types tests/normalize-evidence.test.mjs && node --experimental-strip-types tests/migrate-scene-brief.test.mjs && node --experimental-strip-types tests/scenenote-contract.mjs && tsx --test tests/project_visual_domain_contract.test.ts tests/image_generation_strategy.test.ts tests/collaborative_visual_synthesis.test.ts tests/sprint1_alignment_check.test.ts tests/sprint2_exploration_comparison.test.ts tests/sprint3_resolution_production.test.ts tests/sqlite_persistence_contract.test.ts tests/vertical_core_mvp_e2e.test.ts && tsx --test tests/project_visual_service.test.ts tests/project_visual_no_cross_project_fallback.test.ts tests/subtitle_to_transcript.test.ts tests/decision_to_image_domain.test.ts tests/project_visual_api.test.ts && tsx --test tests/project_visual_workspace_components.test.tsx && tsx --test tests/project_visual_write_contract.test.ts && tsx --test tests/stt_diarization.test.ts && tsx --test tests/shot_recipe_domain.test.ts tests/shot_recipe_service.test.ts tests/shot_recipe_api.test.ts && npm run test:repository && tsx lib/project_dev_integrity_contract.test.ts && tsx lib/transcript_linkage_contract.test.ts && tsx lib/scene_integrity_contract.test.ts && tsx lib/transcript_navigation_contract.test.ts && tsx lib/ui_render_contract.test.ts && tsx lib/selective_cascade.test.ts && tsx lib/project_development.test.ts && tsx lib/project_dev_e2e.test.ts && tsx lib/project_dev_safety.test.ts && tsx lib/score.test.ts && tsx --test tests/capstone_core.test.ts tests/capstone_audio.test.ts && tsx --test tests/alignment_v2.test.ts && tsx --test tests/pipeline_v2.test.ts && tsx --test tests/characters.test.ts && tsx --test tests/images_pipeline.test.ts && node tests/wiring-contract.mjs --static-only && tsx --test tests/facilitator.test.ts tests/live_facilitator_runtime.test.ts tests/live_sharing_runtime.test.ts tests/meeting_decisions_runtime.test.ts && tsx --test tests/meeting_intake_runtime.test.ts tests/v2_analysis_import_runtime.test.ts tests/v2_recovery_runtime.test.ts tests/v2_followup_runtime.test.ts tests/team_operations_runtime.test.ts",
     "test:repository": "tsx --test tests/project_visual_repository_integration.test.ts",
     "test:spec": "node --experimental-strip-types tests/future-spec.mjs",
     "test:all": "npm test && npm run test:spec",
@@ -24,12 +24,14 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@vibrant/generator-default": "^4.0.4",
+    "@vibrant/quantizer-mmcq": "^4.0.4",
     "busboy": "^1.6.0",
     "jsondiffpatch": "^0.7.6",
-    "next": "^16.2.12",
-    "node-vibrant": "^4.0.4",
+    "next": "^16.3.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "sharp": "^0.35.4",
     "zod": "^4.6.2"
   },
   "devDependencies": {

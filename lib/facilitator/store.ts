@@ -1,17 +1,31 @@
 import { db, now } from "../db";
-import { getMeetingUtterances } from "../alignment/store";
+import { getMeetingUtterances, type MeetingUtterance } from "../alignment/store";
 import { publish } from "../live/bus";
 import { analyzeWindow } from "./analyze";
 import { FacilitatorConfig, selectWindow, type Config, type Notification, type Assessed } from "./policy";
 
 type Session = { session_id: string; meeting_id: string; goal: string; interval_ms: number; processed_ms: number; error: string | null; retry_after: number };
-export type StoredReview = { id: number; fromMs: number; toMs: number; partial: boolean; assessed: Assessed; createdAt: string; sourceCount: number };
+export type StoredReview = { id: number; fromMs: number; toMs: number; partial: boolean; assessed: Assessed; createdAt: string; sourceCount: number; sourceChanged?: boolean };
 function database() {
   const d=db();
   d.exec(`CREATE TABLE IF NOT EXISTS facilitator_sessions(session_id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, goal TEXT NOT NULL, interval_ms INTEGER NOT NULL, processed_ms INTEGER NOT NULL DEFAULT 0, error TEXT, retry_after INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS facilitator_gaps(session_id TEXT NOT NULL, from_ms INTEGER NOT NULL, to_ms INTEGER NOT NULL, PRIMARY KEY(session_id,from_ms));
-    CREATE TABLE IF NOT EXISTS facilitator_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, from_ms INTEGER NOT NULL, to_ms INTEGER NOT NULL, partial INTEGER NOT NULL, source_count INTEGER NOT NULL, result_json TEXT NOT NULL, attempts_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(session_id,from_ms,to_ms));`);
+    CREATE TABLE IF NOT EXISTS facilitator_reviews(id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, from_ms INTEGER NOT NULL, to_ms INTEGER NOT NULL, partial INTEGER NOT NULL, source_count INTEGER NOT NULL, result_json TEXT NOT NULL, attempts_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(session_id,from_ms,to_ms));
+    CREATE TABLE IF NOT EXISTS facilitator_review_sources(review_id INTEGER PRIMARY KEY,source_json TEXT NOT NULL);`);
   return d;
+}
+export function reviewSourceChanged(meetingId: string, reviewId: number): boolean {
+  const d=database();
+  const row=d.prepare(`SELECT s.source_json,l.started_at FROM facilitator_reviews r
+    JOIN live_sessions l ON l.id=r.session_id LEFT JOIN facilitator_review_sources s ON s.review_id=r.id
+    WHERE r.id=? AND l.meeting_id=?`).get(reviewId,meetingId) as {source_json:string|null;started_at:string}|undefined;
+  if(!row)return true;
+  if(!row.source_json){
+    if(!d.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='utterance_edits'").get())return false;
+    return !!d.prepare("SELECT id FROM utterance_edits WHERE meeting_id=? AND created_at>=? LIMIT 1").get(meetingId,row.started_at);
+  }
+  const current=new Map(getMeetingUtterances(meetingId).map(u=>[u.uid,u]));
+  return (JSON.parse(row.source_json) as MeetingUtterance[]).some(u=>{const v=current.get(u.uid);return !v||u.text!==v.text||u.speakerKey!==v.speakerKey||u.speakerName!==v.speakerName||u.role!==v.role||u.startMs!==v.startMs||u.endMs!==v.endMs;});
 }
 export function createFacilitatorSession(sessionId: string, meetingId: string, config: Config) {
   const c=FacilitatorConfig.parse(config);
@@ -21,10 +35,10 @@ export function recordAudioGap(sessionId:string,fromMs:number,toMs:number){if(to
 function getSession(id: string) { return database().prepare("SELECT * FROM facilitator_sessions WHERE session_id=?").get(id) as Session | undefined; }
 export function getFacilitatorState(meetingId: string) {
   const d=database();
-  const session=d.prepare("SELECT f.* FROM facilitator_sessions f JOIN live_sessions l ON l.id=f.session_id WHERE f.meeting_id=? ORDER BY l.started_at DESC LIMIT 1").get(meetingId) as Session | undefined;
+  const session=d.prepare("SELECT f.* FROM facilitator_sessions f JOIN live_sessions l ON l.id=f.session_id WHERE f.meeting_id=? ORDER BY l.started_at DESC,l.rowid DESC LIMIT 1").get(meetingId) as Session | undefined;
   if(!session)return null;
   const rows=d.prepare("SELECT * FROM facilitator_reviews WHERE session_id=? ORDER BY to_ms,id").all(session.session_id) as {id:number;from_ms:number;to_ms:number;partial:number;source_count:number;result_json:string;created_at:string}[];
-  return {sessionId:session.session_id,goal:session.goal,intervalMinutes:session.interval_ms/60_000,processedMs:session.processed_ms,error:session.error,reviews:rows.map(r=>({id:r.id,fromMs:r.from_ms,toMs:r.to_ms,partial:!!r.partial,sourceCount:r.source_count,assessed:JSON.parse(r.result_json) as Assessed,createdAt:r.created_at}))};
+  return {sessionId:session.session_id,goal:session.goal,intervalMinutes:session.interval_ms/60_000,processedMs:session.processed_ms,error:session.error,reviews:rows.map(r=>({id:r.id,fromMs:r.from_ms,toMs:r.to_ms,partial:!!r.partial,sourceCount:r.source_count,sourceChanged:reviewSourceChanged(meetingId,r.id),assessed:JSON.parse(r.result_json) as Assessed,createdAt:r.created_at}))};
 }
 const g=globalThis as unknown as {__facilitatorTasks?:Map<string,Promise<void>>};
 const tasks=g.__facilitatorTasks??=new Map();
@@ -50,7 +64,8 @@ export function advanceFacilitator(sessionId: string, throughMs: number, finish=
         if(failed.n||gaps.n){result.assessed.notification=null;result.assessed.held.push("전사 실패 또는 녹음 중단 구간이 포함되어 자동 알림을 보류함");result.assessed.review.focus="uncertain";}
         const d=database();d.exec("BEGIN IMMEDIATE");
         try {
-          d.prepare("INSERT INTO facilitator_reviews(session_id,from_ms,to_ms,partial,source_count,result_json,attempts_json,created_at) VALUES(?,?,?,?,?,?,?,?)").run(sessionId,fromMs,toMs,Number(partial),selected.current.length,JSON.stringify(result.assessed),JSON.stringify(result.attempts),now());
+          const saved=d.prepare("INSERT INTO facilitator_reviews(session_id,from_ms,to_ms,partial,source_count,result_json,attempts_json,created_at) VALUES(?,?,?,?,?,?,?,?)").run(sessionId,fromMs,toMs,Number(partial),selected.current.length,JSON.stringify(result.assessed),JSON.stringify(result.attempts),now());
+          d.prepare("INSERT INTO facilitator_review_sources(review_id,source_json) VALUES(?,?)").run(saved.lastInsertRowid,JSON.stringify([...selected.prior,...selected.current]));
           d.prepare("UPDATE facilitator_sessions SET processed_ms=?,error=NULL,retry_after=0 WHERE session_id=?").run(toMs,sessionId);
           d.exec("COMMIT");
         }catch(e){d.exec("ROLLBACK");throw e;}

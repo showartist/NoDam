@@ -1,3 +1,4 @@
+import { isPracticeMeeting } from "../meetingIntake/store";
 /**
  * 사람의 결정: 관점 비교에서 고른 값(초안) → 합의 화면에서 승인(해결) → 결정 원장.
  *
@@ -83,6 +84,7 @@ export function resolveIssue(opts: {
   resolvedBy: string;
   projectId: string;
 }): { ledgerIds: string[] } {
+  if (isPracticeMeeting(opts.meetingId)) throw new ResolutionError("INCOMPLETE", "가상·예정 자료는 실제 결정으로 승인할 수 없습니다.");
   const issue = getIssue(opts.meetingId, opts.issueId, opts.runId);
   if (!issue) throw new ResolutionError("NOT_FOUND", "안건을 찾을 수 없습니다.");
   if (!opts.resolvedBy.trim()) throw new ResolutionError("MISSING_APPROVER", "승인한 사람 이름이 필요합니다.");

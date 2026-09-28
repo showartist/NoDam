@@ -25,8 +25,8 @@ function clock(ms: number | null): string {
   return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
 
-export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; sources: string[] }) {
-  const [session, setSession] = useState<{ id: string; status: string; mode: string; startedAt?:string } | null>(null);
+export function LiveBoard(props: { embedded?: boolean; onQuestion?: (id:string) => void; onRecordingChange?: (active:boolean) => void; onStopped?: () => void; newMeetingHref?: string; initialGoal?: string; meetingId: string; hasUtterances: boolean; sources: string[] }) {
+  const [session, setSession] = useState<{ id: string; status: string; mode: string; startedAt?:string; stoppedAt?:string|null } | null>(null);
   const [utts, setUtts] = useState<Utt[]>([]);
   const [issues, setIssues] = useState<Record<string, AlignmentIssueV2>>({});
   const [flash, setFlash] = useState<Record<string, "new" | "update">>({});
@@ -39,11 +39,13 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
   const [elapsed, setElapsed] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
   const [facilitator,setFacilitator]=useState<FacilitatorState|null>(null);
-  const [goal,setGoal]=useState("");
+  const [goal,setGoal]=useState(props.initialGoal??"");
   const [intervalMinutes,setIntervalMinutes]=useState(5);
   const [facilitatorEnabled,setFacilitatorEnabled]=useState(true);
   const [savedChunks,setSavedChunks]=useState(0);
   const [micActive,setMicActive]=useState(false);
+  const [finishing,setFinishing]=useState(false);
+  useEffect(()=>{props.onRecordingChange?.(micActive);},[micActive,props.onRecordingChange]);
   const rec = useRef<LiveCapture|null>(null);
   const starting = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -56,11 +58,13 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
     setFacilitator(j.facilitator??null);
     setChunks((j.chunks??[]).map((c:{idx:number;stt_ms:number|null;error:string|null;status:string})=>({idx:c.idx,sttMs:c.stt_ms,utterances:0,linkMethod:"",error:c.error,status:c.status})));
     setIssues(Object.fromEntries((j.issues ?? []).map((i: AlignmentIssueV2) => [i.issue_id, i])));
-    if (j.session) setSession({ id: j.session.id, status: j.session.status, mode: j.session.mode, startedAt:j.session.startedAt??j.session.started_at });
+    if (j.session) setSession({ id: j.session.id, status: j.session.status, mode: j.session.mode, stoppedAt:j.session.stoppedAt??j.session.stopped_at, startedAt:j.session.startedAt??j.session.started_at });
   }, [props.meetingId]);
 
   useEffect(() => {
     void loadState();
+    const edited=(event:Event)=>{if((event as CustomEvent).detail?.meetingId===props.meetingId)void loadState();};
+    window.addEventListener("nodam-source-edited",edited);
     void savedLiveChunks(props.meetingId).then(x=>setSavedChunks(x.length)).catch(e=>setErr(`녹음 복구 저장소 오류: ${e.message}`));
     const es = new EventSource(`/api/meetings/${props.meetingId}/live/events`);
     es.onopen = () => { void loadState(); };
@@ -84,7 +88,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
         if (ev.error) setErr(ev.error);
       }
     };
-    return () => {es.close();rec.current?.dispose();rec.current=null;};
+    return () => {window.removeEventListener("nodam-source-edited",edited);es.close();rec.current?.dispose();rec.current=null;};
   }, [props.meetingId, loadState]);
 
   useEffect(() => {
@@ -99,7 +103,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.status]);
 
-  async function start(mode: "mic" | "replay") {
+  async function start(mode: "mic" | "replay",continueMeeting=false) {
     if(starting.current)return;
     setErr(null);
     setElapsed(0);
@@ -118,7 +122,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
     const r = await fetch(`/api/meetings/${props.meetingId}/live/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode, source: mode === "replay" ? source : undefined, speed: mode === "replay" ? speed : undefined, facilitator:facilitatorEnabled?{goal,intervalMinutes}:undefined }),
+      body: JSON.stringify({ mode, continueMeeting, source: mode === "replay" ? source : undefined, speed: mode === "replay" ? speed : undefined, facilitator:facilitatorEnabled?{goal,intervalMinutes}:undefined }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) {
@@ -128,7 +132,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
     }
     setSession({ id: j.sessionId, status: "recording", mode });
     await loadState();
-    if (mode === "mic" && stream) startRecorder(j.sessionId, stream);
+    if (mode === "mic" && stream) startRecorder(j.sessionId, stream,j.baseOffsetMs??0);
     } catch(e) { stream?.getTracks().forEach(t=>t.stop()); setErr(`시작하지 못했습니다: ${(e as Error).message}`); }
     finally { starting.current=false; }
   }
@@ -159,18 +163,18 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
       const snapshot=await (await fetch(`/api/meetings/${props.meetingId}/live/state`)).json();
       const startedAt=snapshot.session?.startedAt??snapshot.session?.started_at;
       if(!startedAt||!Number.isFinite(Date.parse(startedAt)))throw new Error("녹음 시작 시각을 확인하지 못했습니다.");
-      const offset=Math.max(0,Date.now()-Date.parse(startedAt));
+      const offset=(snapshot.baseOffsetMs??0)+Math.max(0,Date.now()-Date.parse(startedAt));
       startRecorder(session.id,stream,offset);setElapsed(offset);await loadState();
     }catch(e){stream?.getTracks().forEach(t=>t.stop());setErr((e as Error).message);}
   }
 
   async function stop() {
     if (!session) return;
-    setStage("정지 처리 중");
+    setFinishing(true);setStage("녹음 종료 · 남은 전사와 분석 처리 중");
     const r0 = rec.current;
     if (r0) {
       try {await r0.stop();}
-      catch(e){setErr(`녹음 조각 전송을 복구한 뒤 종료해 주세요: ${(e as Error).message}`);return;}
+      catch(e){setErr(`녹음 조각 전송을 복구한 뒤 종료해 주세요: ${(e as Error).message}`);setFinishing(false);return;}
       finally{rec.current=null;setMicActive(false);}
     }
 
@@ -185,7 +189,8 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
       setErr(j.error ?? "정지하지 못했습니다.");
     }
     await loadState();
-    } catch(e) {setErr(`종료 상태를 확인하지 못했습니다. 다시 시도해 주세요: ${(e as Error).message}`);}
+    if(r.ok) props.onStopped?.();
+    } catch(e) {setErr(`종료 상태를 확인하지 못했습니다. 다시 시도해 주세요: ${(e as Error).message}`);}finally{setFinishing(false);}
   }
 
   /**
@@ -226,6 +231,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
   }
 
   async function newMeeting() {
+    if(props.newMeetingHref){window.location.href=props.newMeetingHref;return;}
     const r = await fetch(`/api/meetings/${props.meetingId}/live/new-meeting`, { method: "POST" });
     const j = await r.json();
     if (r.ok) window.location.href = `/m/${j.meetingId}/live`;
@@ -238,7 +244,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
 
   return (
     <>
-      <LiveSharePanel meetingId={props.meetingId}/>
+      {!props.embedded&&<LiveSharePanel meetingId={props.meetingId}/>}
       <div className={s.summary}>
         <div>
           <h1 className={s.title}>회의 중 화면</h1>
@@ -247,19 +253,19 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
           </p>
         </div>
         <div className={s.runInfo}>
-          {recording ? (
+          {finishing||session?.status==="stopping" ? <div role="status">녹음 종료 · 남은 전사·분석 처리 중</div> : recording ? (
             <>
               <div>
-                <b style={{ color: "#dc2626" }}>● {session?.mode === "replay" ? "재생 중" : micActive ? "녹음 중" : "마이크 연결 없음"}</b> {clock(elapsed)} · 조각 {chunks.length} · {stage}
+                <b style={{ color: "#dc2626" }}>● {session?.mode === "replay" ? "재생 중" : micActive ? "녹음 중" : session?.stoppedAt ? "녹음 종료 · 처리 재시도 필요" : "마이크 연결 없음"}</b> {clock(elapsed)} · 조각 {chunks.length} · {stage}
               </div>
               <button className={`${s.btn}`} onClick={stop} disabled={session?.status === "stopping"}>
-                정지
+                {session?.stoppedAt?"종료 처리 다시 시도":"정지"}
               </button>
             </>
           ) : session?.status === "stopped" ? (
             <>
               <div>정지됨 · 발언 {utts.length} · 안건 {sorted.length}</div>
-              {facilitator ? <button className={s.btn} onClick={newMeeting}>새 회의 시작</button> : <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => finalize()} disabled={finalizing}>
+              {facilitator ? <><button className={`${s.btn} ${s.btnPrimary}`} onClick={()=>void start("mic",true)}>같은 회의 이어서 녹음</button><button className={s.btn} onClick={newMeeting}>새 회의 시작</button></> : <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => finalize()} disabled={finalizing}>
                 {finalizing ? "확정 분석 중 (몇 분 걸립니다)" : "회의 전체로 확정 분석"}
               </button>}
             </>
@@ -270,7 +276,8 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
       {err && <div className={s.error}>{err}</div>}
       {!!chunks.length&&<p className={s.muted}>서버 처리 완료 {chunks.filter(c=>c.status==="done").length}조각 · 대기 {chunks.filter(c=>c.status==="queued").length}조각 · 실패 {chunks.filter(c=>c.error).length}조각</p>}
       {chunks.some(c=>c.error)&&<div className={s.error}>전사 실패가 있어 이후 조각 처리를 보류했습니다. 원본 조각은 저장되어 있습니다. <button className={s.btn} onClick={recoverUploads}>전사 다시 시도</button></div>}
-      {session?.mode==="mic"&&!micActive&&["recording","interrupted"].includes(session.status)&&<button className={`${s.btn} ${s.btnPrimary}`} onClick={reconnectMic} style={{marginBottom:12}}>저장된 세션 복구 · 마이크 다시 연결</button>}
+      {session?.status==="interrupted"&&session.stoppedAt&&<button className={s.btn} disabled={finishing} onClick={stop}>중단된 종료 처리 다시 시도</button>}
+      {session?.mode==="mic"&&!micActive&&!session.stoppedAt&&["recording","interrupted"].includes(session.status)&&<button className={`${s.btn} ${s.btnPrimary}`} onClick={reconnectMic} style={{marginBottom:12}}>저장된 세션 복구 · 마이크 다시 연결</button>}
       {savedChunks>0&&<div className={s.detail} style={{marginBottom:12}}><span>브라우저에 저장된 녹음 {savedChunks}조각</span> <button className={s.btn} onClick={()=>downloadLiveChunks(props.meetingId)}>녹음 조각 내려받기</button> {recording&&!micActive&&<button className={s.btn} onClick={recoverUploads}>미전송 조각 복구</button>}</div>}
       {!recording&&!props.hasUtterances&&session?.status!=="stopped"&&<div className={s.detail} style={{marginBottom:16}}>
         <label><input type="checkbox" checked={facilitatorEnabled} onChange={e=>setFacilitatorEnabled(e.target.checked)}/> 회의 목적에 따른 진행 보조</label>
@@ -292,7 +299,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
               <button className={`${s.btn} ${s.btnPrimary}`} onClick={() => start("mic")}>
                 마이크로 회의 시작
               </button>
-              <span className={s.muted}>또는</span>
+              {!props.embedded&&<><span className={s.muted}>또는</span>
               <label className={s.muted}>
                 녹음 파일{" "}
                 <select className={s.input} style={{ width: "auto" }} value={source} onChange={(e) => setSource(e.target.value)}>
@@ -316,7 +323,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
               </label>
               <button className={s.btn} onClick={() => start("replay")} disabled={!source}>
                 재생 모드로 시작
-              </button>
+              </button></>}
             </div>
           )}
         </div>
@@ -344,7 +351,7 @@ export function LiveBoard(props: { meetingId: string; hasUtterances: boolean; so
           </div>
         </section>
 
-        {facilitatorEnabled||facilitator ? <FacilitatorPanel state={facilitator} meetingId={props.meetingId}/> : <section>
+        {facilitatorEnabled||facilitator ? <FacilitatorPanel state={facilitator} meetingId={props.meetingId} decisionsHref={props.embedded?`/v2/m/${props.meetingId}/decisions`:undefined} onQuestion={props.onQuestion}/> : <section>
           <div className={s.listHead} style={{ borderRadius: "12px 12px 0 0", border: "1px solid #e2e8f0", borderBottom: 0, background: "#fff" }}>
             안건 {sorted.length}건 · 창 분석 {windows.length}회
             {windows.length > 0 && ` · 마지막 창 ${Math.round(windows[windows.length - 1].latencyMs / 1000)}초`}

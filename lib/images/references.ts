@@ -11,7 +11,7 @@
  * 생성 입력으로는 팀이 올린 파일만 쓴다. 외부 서비스에서 이미지를 받아 오지 않는다.
  * 출처가 TMDB·Unsplash 인 파일은 약관상 AI 입력으로 쓸 수 없어 첨부하지 않고 글로만 반영한다.
  *
- * 팔레트: core·partial 이미지에서 node-vibrant 로 색 견본을 뽑아 palette_json 에 남긴다.
+ * 팔레트: core·partial 이미지에서 sharp와 Vibrant 양자화로 색 견본을 뽑아 palette_json 에 남긴다.
  *   - 실제 픽셀에서 나온 견본(population > 0)만 남긴다. 합성 견본은 버린다.
  *   - 프롬프트에는 가져올 요소에 색 관련 말이 있고, 가져오지 않을 요소에는 없을 때만 넣는다.
  *     색을 가져오라는 말이 없는데 색을 넘기면 "가져올 요소"를 우리가 늘리는 셈이다.
@@ -210,12 +210,18 @@ export async function createReference(input: NewReferenceInput): Promise<{ refer
 
 // ── 팔레트 ──────────────────────────────────────────────────────────────────
 
-export const PALETTE_EXTRACTOR = "node-vibrant@4";
+export const PALETTE_EXTRACTOR = "sharp+vibrant-mmcq@4";
 
-/** 실제 픽셀에서 나온 견본만, 많이 나온 순서로. PNG·JPEG 만 읽는다(WebP 는 디코더가 없다). */
+/** 실제 픽셀에서 나온 견본만, 많이 나온 순서로. PNG·JPEG 입력만 허용한다. */
 export async function extractPalette(absPath: string): Promise<PaletteSwatch[]> {
-  const { Vibrant } = await import("node-vibrant/node");
-  const palette = await Vibrant.from(absPath).getPalette();
+  const {default:sharp}=await import("sharp");
+  const {MMCQ}=await import("@vibrant/quantizer-mmcq");
+  const {DefaultGenerator}=await import("@vibrant/generator-default");
+  const image=sharp(absPath,{limitInputPixels:40_000_000});
+  const metadata=await image.metadata();
+  if(metadata.format!=="png"&&metadata.format!=="jpeg")throw new Error("팔레트는 PNG·JPEG 이미지에서만 추출합니다.");
+  const pixels=await image.resize({width:256,height:256,fit:"inside",withoutEnlargement:true}).ensureAlpha().raw().toBuffer();
+  const palette=await DefaultGenerator(MMCQ(pixels,{colorCount:64}));
   const out: PaletteSwatch[] = [];
   for (const [name, sw] of Object.entries(palette)) {
     if (sw && sw.population > 0) out.push({ name, hex: sw.hex.toLowerCase(), population: sw.population });

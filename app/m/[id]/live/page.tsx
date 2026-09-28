@@ -1,3 +1,5 @@
+import { getIntakeMetadata, intakeContext } from "@/lib/meetingIntake/store";
+import IntakeNotice from "@/app/components/IntakeNotice";
 import React from "react";
 import { notFound } from "next/navigation";
 import { HeaderNavStepper } from "@/app/components/HeaderNavStepper";
@@ -14,6 +16,7 @@ export default async function LivePage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const data = loadAlignmentPageData(id);
   if (!data) notFound();
+  const info = getIntakeMetadata(id);
   return (
     <main className={s.page}>
       <HeaderNavStepper
@@ -24,8 +27,9 @@ export default async function LivePage({ params }: { params: Promise<{ id: strin
         slugline={data.scene.slugline ?? undefined}
         oneLiner={data.scene.oneLiner ?? undefined}
       />
+      <IntakeNotice meetingId={id} />
       <div className={s.wrap}>
-        <LiveBoard meetingId={id} hasUtterances={data.utteranceCount > 0} sources={listReplaySources().map((x) => x.name)} />
+        <LiveBoard initialGoal={info ? intakeContext(info) : undefined} meetingId={id} hasUtterances={data.utteranceCount > 0} sources={listReplaySources().map((x) => x.name)} />
       </div>
     </main>
   );

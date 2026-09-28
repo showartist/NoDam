@@ -1,0 +1,6 @@
+{$NODAM_DOMAIN} {
+  encode gzip
+  reverse_proxy app:3210 {
+    flush_interval -1
+  }
+}
