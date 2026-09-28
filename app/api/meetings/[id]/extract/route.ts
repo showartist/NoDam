@@ -1,3 +1,4 @@
+import { isPracticeMeeting } from "@/lib/meetingIntake/store";
 import { NextResponse } from "next/server";
 import { getBundle, saveExtraction } from "@/lib/store";
 import { runExtraction } from "@/lib/extract";
@@ -10,6 +11,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   const { id } = await ctx.params;
   const bundle = getBundle(id);
   if (!bundle) return NextResponse.json({ error: "회의를 찾을 수 없습니다." }, { status: 404 });
+
+  if (isPracticeMeeting(id)) return NextResponse.json({error:"가상·예정 자료는 v2 동상이몽 체크로 분석해 주세요. 실제 제작 결정 추출은 사용할 수 없습니다."},{status:409});
 
   // 녹음에서 온 발언은 speaker_name 이 비어 있다. 사람이 붙인 화자 매핑(이름·역할)을 먼저 쓴다.
   const mapped = new Map(getMeetingUtterances(id).map((u) => [u.uid, u]));

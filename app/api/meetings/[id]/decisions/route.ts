@@ -1,3 +1,4 @@
+import {sameAppOrigin} from "@/lib/httpOrigin";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { changeDecisionBoard, getDecisionBoard, DecisionError } from "@/lib/meetingDecisions/store";
@@ -13,8 +14,8 @@ export async function GET(_request: Request, {params}:{params:Promise<{id:string
   try {return NextResponse.json(getDecisionBoard((await params).id));} catch(e) {return failure(e);}
 }
 export async function POST(request: Request, {params}:{params:Promise<{id:string}>}) {
-  const origin=request.headers.get("origin");
-  if(origin&&origin!==new URL(request.url).origin)return NextResponse.json({error:"같은 앱에서 요청해 주세요."},{status:403});
+
+  if(!sameAppOrigin(request))return NextResponse.json({error:"같은 앱에서 요청해 주세요."},{status:403});
   try {
     const body=await request.json();
     if(!Number.isSafeInteger(body?.revision)||body.revision<0)return NextResponse.json({error:"현재 기록 버전이 필요합니다."},{status:400});

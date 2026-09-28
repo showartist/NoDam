@@ -97,7 +97,8 @@ export function assembleIssue(
       continue;
     }
     const sc = checkSpeakerEvidence(key, evidence, byUid);
-    if (sc.result !== "ok") {
+    const anonymous = !key && ["?", "S?"].includes(p.speaker.trim()) && evidence.every(e => !byUid.get(e)!.speakerKey);
+    if (sc.result !== "ok" && !anonymous) {
       stats.droppedPositions++;
       if (sc.result === "mismatch") stats.speakerMismatch++;
       dropped.push({
@@ -123,7 +124,7 @@ export function assembleIssue(
       quote: p.quote.trim(),
       evidence,
       slots,
-      checks: { speaker: "ok", quote: "ok", context: "not_checked", contextNote: null },
+      checks: { speaker: anonymous ? "unknown_speaker" : "ok", quote: "ok", context: "not_checked", contextNote: null },
     });
   }
 
@@ -131,7 +132,7 @@ export function assembleIssue(
   const merged = new Map<string, PositionV2>();
   const order = (p: PositionV2) => Math.max(...p.evidence.map((e) => byUid.get(e)?.idx ?? 0));
   for (const p of [...kept].sort((a, b) => order(a) - order(b))) {
-    const k = p.speaker.key!;
+    const k = p.speaker.key ?? `anonymous:${merged.size}`;
     const prev = merged.get(k);
     if (!prev) {
       merged.set(k, p);
@@ -148,9 +149,9 @@ export function assembleIssue(
   }
   const positions = [...merged.values()];
 
-  const distinct = new Set(positions.map((p) => p.speaker.key)).size;
+  const distinct = new Set(positions.map((p) => p.speaker.key).filter(Boolean)).size;
   const need = MIN_DISTINCT_SPEAKERS[li.type];
-  if (distinct < need) {
+  if ((need > 1 && distinct < need) || positions.length === 0) {
     stats.droppedIssues.push({
       key: li.key,
       type: li.type,

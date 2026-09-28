@@ -1,3 +1,4 @@
+import { getIntakeMetadata, intakeContext } from "../meetingIntake/store";
 /**
  * 해석 차이 탐지 v2 — 회의 전체 일괄 분석(batch).
  *
@@ -5,12 +6,13 @@
  *       → (선택) 문맥 검사·항목 짝 판정 → 저장
  * 실패도 run 으로 남긴다. "돌렸는데 없었다"와 "실패했다"는 다르다.
  */
+import {beginAnalysisJob,renewAnalysisJob,assertAnalysisJob} from "./jobs";
 import { db } from "../db";
 import { chatJson, LlmError, sumUsage, type Usage } from "../llm/openrouter";
 import { assembleAll, assignIds, type AssembleStats } from "./assemble";
 import { buildBatchUserMessage, buildSpeakerLabels, SYSTEM_PROMPT_V2, type SpeakerLabel } from "./prompt";
 import { LlmAnalysisOutput, llmOutputJsonSchema, type AgreementV2, type AlignmentIssueV2 } from "./schema";
-import { createRun, finishRun, getMeetingUtterances, saveIssues, type MeetingUtterance } from "./store";
+import { finishRun, getMeetingUtterances, saveIssues, type MeetingUtterance } from "./store";
 import { runContextChecks, type ContextCheckOptions } from "./context";
 import { checkPastDecisions, withdrawConflictingAgreements } from "../consistency/check";
 
@@ -36,9 +38,10 @@ export function getMeetingContext(meetingId: string): MeetingContext {
          FROM meetings m LEFT JOIN projects p ON p.id = m.project_id WHERE m.id = ?`,
     )
     .get(meetingId) as { meeting_title: string | null; project_id: string | null; project_title: string | null; one_line: string | null } | undefined;
+  const intake = getIntakeMetadata(meetingId);
   return {
     projectTitle: row?.project_title ?? null,
-    sceneLine: [row?.meeting_title, row?.one_line].filter(Boolean).join(" · ") || null,
+    sceneLine: intake ? intakeContext(intake) : [row?.meeting_title, row?.one_line].filter(Boolean).join(" · ") || null,
     projectId: row?.project_id ?? null,
   };
 }
@@ -149,17 +152,22 @@ export async function runBatchAnalysis(
   const utts = getMeetingUtterances(meetingId);
   if (utts.length === 0) throw new AnalysisV2Error("NO_INPUT", "이 회의에 저장된 발언이 없습니다.");
   const model = opts.model ?? DEFAULT_ANALYSIS_MODEL;
-  const runId = createRun(meetingId, "batch", model, {
-    judgeModel: opts.contextCheck === false ? null : (opts.contextCheck?.model ?? "anthropic/claude-haiku-4.5"),
-    utteranceCount: utts.length,
-  });
+  const runId = beginAnalysisJob(meetingId, model, opts.contextCheck === false ? null : (opts.contextCheck?.model ?? "anthropic/claude-haiku-4.5"), utts);
+  const ownership=new AbortController();
+  const heartbeat=setInterval(()=>{try{if(!renewAnalysisJob(runId))ownership.abort();}catch{ownership.abort();}},10_000);
+  heartbeat.unref?.();
+  const signal=AbortSignal.any([ownership.signal,AbortSignal.timeout(600_000),...(opts.signal?[opts.signal]:[])]);
   try {
     const context = getMeetingContext(meetingId);
-    const r = await analyzeUtterances({ meetingId, runId, utts, context, model, contextCheck: opts.contextCheck, signal: opts.signal });
+    const intake = getIntakeMetadata(meetingId);
+    const practice = !!intake && intake.source_type !== "actual";
+    const r = await analyzeUtterances({ meetingId, runId, utts, context, model, dataMode: practice ? "fixture" : "live", contextCheck: opts.contextCheck, signal });
     // 회의 간 일관성: 같은 작품의 다른 회의에서 승인된 결정과 이번 회의 발언을 대조한다.
     // 실패해도 이 회의의 분석은 살리고, 실패했다는 사실을 stats 에 남긴다.
     let consistency: unknown;
-    try {
+    if (intake) {
+      consistency = { skipped: "v2 새 회의는 과거 맥락을 자동으로 가져오지 않음" };
+    } else try {
       const c = await checkPastDecisions({ meetingId, projectId: context.projectId, runId, utts, existingIssueIds: r.issues.map((i) => i.issue_id) });
       const w = withdrawConflictingAgreements(r.agreements, c.issues);
       r.agreements = w.agreements;
@@ -179,6 +187,11 @@ export async function runBatchAnalysis(
     } catch (e) {
       consistency = { error: (e as Error).message };
     }
+    if (practice) {
+      r.agreements = [];
+      r.issues = r.issues.map(issue => ({...issue, state: "open", condition: null}));
+    }
+    assertAnalysisJob(runId);
     saveIssues(runId, r.issues);
     finishRun(runId, { status: "completed", latencyMs: r.latencyMs, windowCount: 1, usage: r.usage, stats: { ...r.stats, consistency }, agreements: r.agreements });
     return { runId, ...r, stats: { ...r.stats, consistency } };
@@ -186,5 +199,5 @@ export async function runBatchAnalysis(
     const err = e instanceof AnalysisV2Error ? e : new AnalysisV2Error("LLM_FAILED", (e as Error).message);
     finishRun(runId, { status: "failed", error: `${err.code}: ${err.message}` });
     throw new AnalysisV2Error(err.code, err.message, runId);
-  }
+  } finally {clearInterval(heartbeat);}
 }

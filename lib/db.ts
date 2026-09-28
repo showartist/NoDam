@@ -28,6 +28,11 @@ export function db(): DatabaseSync {
       id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT,
       raw_transcript TEXT NOT NULL, extracted_at TEXT, created_at TEXT NOT NULL);
 
+    CREATE TABLE IF NOT EXISTS meeting_intake (
+      meeting_id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE, fingerprint TEXT NOT NULL,
+      purpose TEXT NOT NULL, kind TEXT NOT NULL, source_type TEXT NOT NULL,
+      input_mode TEXT NOT NULL, source_name TEXT);
+
     CREATE TABLE IF NOT EXISTS utterances (
       id TEXT PRIMARY KEY, meeting_id TEXT NOT NULL, idx INTEGER NOT NULL,
       uid TEXT NOT NULL, speaker_id TEXT, speaker_name TEXT NOT NULL, role TEXT,

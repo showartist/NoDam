@@ -1,6 +1,9 @@
+import {settledIssues} from "../alignment/settled";
+import {analysisSourceChanged} from "../alignment/jobs";
+import { getIntakeMetadata, isPracticeMeeting } from "../meetingIntake/store";
 import { db, now, uid } from "../db";
-import { getMeetingUtterances } from "../alignment/store";
-import { getFacilitatorState } from "../facilitator/store";
+import { getMeetingUtterances, getRun, getCurrentRun, getIssue } from "../alignment/store";
+import { getFacilitatorState, reviewSourceChanged } from "../facilitator/store";
 import { Command, confirmationBlockers, type Board, type Question } from "./model";
 
 export class DecisionError extends Error {
@@ -23,16 +26,21 @@ export function getDecisionBoard(meetingId: string) {
   requireMeeting(meetingId);
   const { revision, board } = readBoard(meetingId);
   return {
-    revision, ...board, goal: getFacilitatorState(meetingId)?.goal ?? null,
-    questions: board.questions.map(q => ({ ...q, blockers: q.confirmedAt ? [] : confirmationBlockers(board, q) })),
+    revision, ...board, goal: getIntakeMetadata(meetingId)?.purpose ?? getFacilitatorState(meetingId)?.goal ?? null,
+    questions: board.questions.map(q => {
+      const sourceChanged=q.source ? reviewSourceChanged(meetingId,q.source.reviewId) : q.analysisSource ? analysisSourceChanged(q.analysisSource.runId,meetingId) : false;
+      return {...q,sourceChanged,blockers:q.confirmedAt?[]:[...confirmationBlockers(board,q),...(sourceChanged?["분석 근거가 수정되었습니다. 다시 분석한 후보로 확인해 주세요."]:[])]};
+    }),
     evidence: getMeetingUtterances(meetingId).map(u => ({uid:u.uid,text:u.text,speaker:u.speakerName??u.speakerId??"화자 미확인"})),
     history: database().prepare("SELECT revision,action,detail_json,created_at FROM meeting_decision_events WHERE meeting_id=? ORDER BY revision DESC LIMIT 100").all(meetingId),
     recordMode: "facilitator_recorded_not_identity_verified" as const,
   };
 }
-export function changeDecisionBoard(meetingId: string, revision: number, value: unknown) {
+export function changeDecisionBoard(meetingId: string, revision: number, value: unknown, actor?: {participantId:string}) {
   const command = Command.parse(value);
+  if(actor&&(!["interpretation","response"].includes(command.action)||!("participantId" in command)||command.participantId!==actor.participantId))throw new DecisionError(403,"본인의 응답만 기록할 수 있습니다.");
   requireMeeting(meetingId);
+  if (["confirm", "response", "interpretation"].includes(command.action) && isPracticeMeeting(meetingId)) throw new DecisionError(409,"가상·예정 자료에서 실제 참가자의 확인·동의를 기록할 수 없습니다.");
   const d = database();
   // Initialize the facilitator tables before opening the write transaction.
   const imported = command.action === "import" ? getFacilitatorState(meetingId)?.reviews.find(r => r.id === command.reviewId)?.assessed.review.findings[command.findingIndex] : null;
@@ -41,22 +49,45 @@ export function changeDecisionBoard(meetingId: string, revision: number, value: 
     const current = readBoard(meetingId), board = current.board;
     if (current.revision !== revision) throw new DecisionError(409, "다른 변경이 먼저 저장됐습니다. 새로 불러온 내용을 확인한 뒤 다시 입력해 주세요.");
     const stamp = now();
-    let audit: unknown = command;
+    let audit: unknown = {...command,recordMode:actor?"participant_invite_holder":"facilitator_recorded_not_identity_verified",recordedBy:actor?.participantId??null};
     if (command.action === "participant") {
       if (board.participants.some(p => p.name === command.name)) throw new DecisionError(409, "같은 이름의 참가자가 있습니다. 구분할 이름을 입력해 주세요.");
       board.participants.push({id:uid(),name:command.name,role:command.role});
       for (const q of board.questions) if (q.comparison && !q.confirmedAt) {
         q.comparison.synthesis = null; q.responses = []; q.proposalRevision++;
       }
-    } else if (command.action === "question" || command.action === "import") {
+    } else if (command.action === "question" || command.action === "import" || command.action === "import_analysis") {
       if (command.action === "import" && !imported) throw new DecisionError(404, "이 회의의 AI 검토 후보를 찾을 수 없습니다.");
+      if(command.action === "import" && reviewSourceChanged(meetingId,command.reviewId))throw new DecisionError(409,"실시간 분석 근거의 발언·화자가 수정되었습니다. 다시 분석한 후보로 확인해 주세요.");
       if (command.action === "import" && board.questions.some(q => q.source?.reviewId === command.reviewId && q.source.findingIndex === command.findingIndex)) {
         d.exec("ROLLBACK"); return getDecisionBoard(meetingId);
       }
-      const refs = command.action === "question" ? command.evidence : imported!.evidence.map(e => ({uid:e.uid,quote:e.quote}));
+      let analysis = null;
+      let resolutionEvidence:string[]=[];
+      if (command.action === "import_analysis") {
+        const run = getRun(command.runId);
+        if (!run || run.meeting_id !== meetingId) throw new DecisionError(404, "이 회의의 분석을 찾을 수 없습니다.");
+        if (run.status !== "completed" || getCurrentRun(meetingId)?.id !== run.id) throw new DecisionError(409, "현재 완료된 분석에서 후보를 다시 선택해 주세요.");
+        if(analysisSourceChanged(run.id,meetingId))throw new DecisionError(409,"발언 또는 화자가 수정되었습니다. 다시 분석한 후보를 가져와 주세요.");
+        analysis = getIssue(meetingId, command.issueId, command.runId);
+        if(!analysis){const settled=settledIssues(run.stats_json).find(s=>s.issue_id===command.issueId);if(settled?.issue&&settled.issue.meeting_id===meetingId&&settled.issue.analysis_run_id===run.id&&settled.issue.issue_id===command.issueId){analysis=settled.issue;resolutionEvidence=settled.evidence;}}
+        if (!analysis) throw new DecisionError(404, "분석 후보를 찾을 수 없습니다.");
+        if (board.questions.some(q => q.analysisSource?.runId === command.runId && q.analysisSource.issueId === command.issueId)) {
+          d.exec("ROLLBACK"); return getDecisionBoard(meetingId);
+        }
+      }
       const turns = new Map(getMeetingUtterances(meetingId).map(u => [u.uid,u.text]));
+      const refs = command.action === "question" ? command.evidence : analysis ? analysis.positions.map(p => {
+        const id = p.evidence.find(id => p.quote.trim() && turns.get(id)?.includes(p.quote));
+        if (!id) throw new DecisionError(409, "분석 인용과 현재 원문이 다릅니다. 원문을 확인하고 다시 분석해 주세요.");
+        return {uid:id,quote:p.quote};
+      }) : imported!.evidence.map(e => ({uid:e.uid,quote:e.quote}));
+      for(const id of resolutionEvidence){const quote=turns.get(id);if(!quote)throw new DecisionError(409,"정리 근거가 현재 원문에 없습니다. 다시 분석해 주세요.");if(!refs.some(e=>e.uid===id))refs.push({uid:id,quote});}
+      if (!refs.length) throw new DecisionError(409, "원문 근거 없는 후보는 가져올 수 없습니다.");
       for (const e of refs) if (!turns.get(e.uid)?.includes(e.quote)) throw new DecisionError(400, `현재 회의 원문과 맞지 않는 근거: ${e.uid}`);
-      const q: Question = {id:uid(),question:command.action === "question" ? command.question : imported!.question,evidence:refs,source:command.action === "import" ? {reviewId:command.reviewId,findingIndex:command.findingIndex} : null,proposal:"",proposalRevision:0,responses:[],task:null,feedback:null,confirmedAt:null,participantsAtConfirmation:[]};
+      const q: Question = {id:uid(),question:command.action === "question" ? command.question : analysis ? analysis.question : imported!.question,evidence:refs,source:command.action === "import" ? {reviewId:command.reviewId,findingIndex:command.findingIndex} : null,proposal:"",proposalRevision:0,responses:[],task:null,feedback:null,confirmedAt:null,participantsAtConfirmation:[]};
+      if (command.action === "import_analysis") q.analysisSource = {runId:command.runId,issueId:command.issueId};
+      if (analysis?.concept && refs.some(e=>e.quote.includes(analysis.concept))) q.comparison = {expression:analysis.concept,decisionTarget:analysis.decision,interpretations:[],synthesis:null};
       board.questions.push(q); audit = { ...command, savedQuestion: q };
     } else {
       const q = board.questions.find(q => q.id === command.questionId);
@@ -70,7 +101,7 @@ export function changeDecisionBoard(meetingId: string, revision: number, value: 
         if (!q.comparison) throw new DecisionError(409, "해석 비교를 먼저 시작해 주세요.");
         if (!board.participants.some(p => p.id === command.participantId)) throw new DecisionError(400, "등록된 참가자가 아닙니다.");
         q.comparison.interpretations = q.comparison.interpretations.filter(i => i.participantId !== command.participantId);
-        q.comparison.interpretations.push({participantId:command.participantId,meaning:command.meaning,example:command.example,conditions:command.conditions,confirmedByParticipant:command.confirmedByParticipant,recordedAt:stamp});
+        q.comparison.interpretations.push({participantId:command.participantId,meaning:command.meaning,example:command.example,conditions:command.conditions,confirmedByParticipant:command.confirmedByParticipant,recordedVia:actor?"personal_link":"facilitator",recordedAt:stamp});
         q.comparison.synthesis = null; q.responses = []; q.proposalRevision++;
       } else if (command.action === "synthesis") {
         if (!q.comparison) throw new DecisionError(409, "해석 비교를 먼저 시작해 주세요.");
@@ -85,8 +116,10 @@ export function changeDecisionBoard(meetingId: string, revision: number, value: 
         if (!q.proposal) throw new DecisionError(409, "결정안을 먼저 작성해 주세요.");
         if (!board.participants.some(p => p.id === command.participantId)) throw new DecisionError(400, "등록된 참가자가 아닙니다.");
         q.responses = q.responses.filter(r => r.participantId !== command.participantId);
-        q.responses.push({participantId:command.participantId,stance:command.stance,understanding:command.understanding,concern:command.concern,proposalRevision:q.proposalRevision,recordedAt:stamp});
+        q.responses.push({participantId:command.participantId,stance:command.stance,understanding:command.understanding,concern:command.concern,proposalRevision:q.proposalRevision,recordedVia:actor?"personal_link":"facilitator",recordedAt:stamp});
       } else if (command.action === "confirm") {
+        if(q.source&&reviewSourceChanged(meetingId,q.source.reviewId))throw new DecisionError(409,"실시간 분석 근거의 발언·화자가 수정되었습니다. 다시 분석하고 확인해 주세요.");
+        if(q.analysisSource&&analysisSourceChanged(q.analysisSource.runId,meetingId))throw new DecisionError(409,"분석 근거의 발언·화자가 수정되었습니다. 다시 분석하고 확인해 주세요.");
         const currentText = new Map(getMeetingUtterances(meetingId).map(u => [u.uid,u.text]));
         if(q.evidence.some(e=>!currentText.get(e.uid)?.includes(e.quote))) throw new DecisionError(409,"근거 원문이 변경되었습니다. 현재 원문으로 새 안건을 등록해 주세요.");
         const blockers = confirmationBlockers(board,q);

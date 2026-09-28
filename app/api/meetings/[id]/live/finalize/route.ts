@@ -18,6 +18,8 @@ export const maxDuration = 900;
  */
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
+  const segments=(db().prepare("SELECT COUNT(*) n FROM live_sessions WHERE meeting_id=?").get(id) as {n:number}).n;
+  if(segments>1)return NextResponse.json({error:"여러 녹음 구간이 있는 회의입니다. 마지막 구간의 음성으로 전체 발언을 덮어쓸 수 없습니다. 저장된 발언으로 전체 체크를 실행해 주세요."},{status:409});
   const body = (await req.json().catch(() => ({}))) as { confirmReplace?: boolean; transcriptionJobId?: string };
   // 회의 중에 사람이 승인·제외·선택한 안건이 있으면 확정본이 화면을 바꾸기 전에 묻는다(analyze-v2 와 같은 규칙).
   const current = getCurrentRun(id);

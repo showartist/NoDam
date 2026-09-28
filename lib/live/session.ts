@@ -26,6 +26,7 @@ import { createRun, finishRun, getMeetingUtterances, upsertIssue } from "../alig
 import { DEFAULT_WINDOW_MODEL, newWindowState, runWindow, type WindowState } from "../alignment/window";
 import { getMeetingContext } from "../alignment/analyze";
 import { publish } from "./bus";
+import {segmentDatabase,segmentBase,saveSegment,speakerChunkIndex} from "./segments";
 
 export const LIVE_DIR = path.join(process.cwd(), ".data", "live");
 
@@ -73,20 +74,27 @@ export function activeSessionFor(meetingId: string): Engine | null {
   return null;
 }
 
-export function startSession(meetingId: string, mode: "mic" | "replay", opts: { source?: string; speed?: number; windowSize?: number; facilitator?: Config } = {}): Engine {
+export function startSession(meetingId: string, mode: "mic" | "replay", opts: { source?: string; speed?: number; windowSize?: number; facilitator?: Config; continueMeeting?: boolean } = {}): Engine {
   if (activeSessionFor(meetingId)) throw new LiveError("ALREADY_RUNNING", "이 회의에서 이미 라이브 세션이 돌고 있습니다.");
-  if (getMeetingUtterances(meetingId).length > 0) {
+  const prior=db().prepare("SELECT id,status,registry_json FROM live_sessions WHERE meeting_id=? ORDER BY started_at DESC,rowid DESC LIMIT 1").get(meetingId) as {id:string;status:string;registry_json:string}|undefined;
+  if(prior&&["recording","stopping"].includes(prior.status))throw new LiveError("ALREADY_RUNNING","저장된 세션의 녹음 또는 종료 처리를 먼저 복구해 주세요.");
+  const continuation=opts.continueMeeting===true;
+  if(continuation&&(!prior||prior.status!=="stopped"||mode!=="mic"||!opts.facilitator))throw new LiveError("NOT_EMPTY","완료된 마이크 회의에서만 새 구간을 이어갈 수 있습니다.");
+  if(continuation&&db().prepare("SELECT r.id FROM alignment_v2_runs r JOIN live_sessions l ON l.run_id=r.id WHERE l.id=? AND r.status!='completed'").get(prior!.id))throw new LiveError("STOPPED","이전 구간의 종료 처리를 먼저 마쳐 주세요.");
+  if (!continuation&&getMeetingUtterances(meetingId).length > 0) {
     throw new LiveError("NOT_EMPTY", "발언이 이미 있는 회의입니다. 라이브 입력은 빈 회의에서 시작합니다(새 라이브 회의를 만드세요).");
   }
+  const baseMs=continuation?Math.max(0,...getMeetingUtterances(meetingId).map(u=>u.endMs??u.startMs??0),...((db().prepare("SELECT offset_ms+COALESCE(duration_ms,0) end_ms FROM live_chunks WHERE session_id IN (SELECT id FROM live_sessions WHERE meeting_id=?)").all(meetingId) as {end_ms:number}[]).map(c=>c.end_ms))):0;
   const sessionId = `live_${uid()}`;
   const runId = createRun(meetingId, "live", opts.facilitator ? FACILITATOR_MODEL : DEFAULT_WINDOW_MODEL, { judgeModel: "anthropic/claude-haiku-4.5" });
   db()
     .prepare(`INSERT INTO live_sessions (id, meeting_id, run_id, mode, source, speed, status, started_at) VALUES (?,?,?,?,?,?,?,?)`)
     .run(sessionId, meetingId, runId, mode, opts.source ?? null, opts.speed ?? null, "recording", now());
-  if(opts.facilitator) createFacilitatorSession(sessionId, meetingId, opts.facilitator);
+  segmentDatabase().prepare("INSERT INTO live_segments(session_id,base_ms) VALUES(?,?)").run(sessionId,baseMs);
+  if(opts.facilitator){createFacilitatorSession(sessionId, meetingId, opts.facilitator);db().prepare("UPDATE facilitator_sessions SET processed_ms=? WHERE session_id=?").run(baseMs,sessionId);}
   const e: Engine = {
     facilitator: opts.facilitator,
-    mediaEndMs: 0,
+    mediaEndMs: baseMs,
     acceptedOffsets: new Map(),
     sessionId,
     meetingId,
@@ -94,7 +102,7 @@ export function startSession(meetingId: string, mode: "mic" | "replay", opts: { 
     mode,
     windowSize: opts.windowSize ?? Number(process.env.SCENENOTE_LIVE_WINDOW ?? 12),
     state: newWindowState(meetingId, runId),
-    registry: [],
+    registry: continuation?JSON.parse(prior!.registry_json):[],
     analyzedUpTo: 0,
     chunkIdx: 0,
     queue: Promise.resolve(),
@@ -123,6 +131,7 @@ export function ingestChunk(sessionId: string, input: { bytes: Buffer; ext: stri
   if (!e) throw new LiveError("NOT_FOUND", "라이브 세션을 찾을 수 없습니다(서버가 다시 떴을 수 있습니다).");
   if (e.stopping) throw new LiveError("STOPPED", "이미 정지한 세션입니다.");
   if(!Number.isFinite(input.offsetMs) || input.offsetMs<0 || input.bytes.length>8*1024*1024 || !/^(webm|m4a|mp4|ogg|wav)$/.test(input.ext)) throw new LiveError("BAD_CHUNK","잘못된 녹음 조각입니다.");
+  if(input.offsetMs<segmentBase(sessionId))throw new LiveError("BAD_CHUNK","이전 구간보다 앞선 시각의 녹음입니다.");
   const digest=createHash("sha256").update(input.bytes).digest("hex");
   const previous=e.acceptedOffsets.get(input.offsetMs);
   if(previous){if(previous!==digest)throw new LiveError("BAD_CHUNK","같은 시각의 서로 다른 녹음 조각입니다.");return e.queue;}
@@ -182,7 +191,7 @@ async function processChunk(e: Engine, idx: number, raw: string, offsetMs: numbe
       .filter((u) => u.startMs != null && u.endMs != null)
       .map((u) => ({ local: u.speakerId ?? "X", startMs: u.startMs as number, endMs: u.endMs as number }));
     const link = segments.length
-      ? await linkChunk({ audioPath: wav, segments, registry: e.registry, chunkIndex: idx })
+      ? await linkChunk({ audioPath: wav, segments, registry: e.registry, chunkIndex: speakerChunkIndex(e.sessionId,idx) })
       : { mapping: {}, confidence: {}, registry: e.registry, method: e.linkMethod ?? "embedding", similarities: [] };
     e.registry = link.registry;
     e.linkMethod = link.method;
@@ -303,7 +312,7 @@ export async function stopSession(sessionId: string): Promise<{ utterances: numb
   if (!e) throw new LiveError("NOT_FOUND", "라이브 세션을 찾을 수 없습니다.");
   if(e.stopping)throw new LiveError("STOPPED","종료 처리가 이미 진행 중입니다.");
   e.stopping = true;
-  db().prepare(`UPDATE live_sessions SET status = 'stopping' WHERE id = ?`).run(sessionId);
+  db().prepare(`UPDATE live_sessions SET status = 'stopping', stopped_at=COALESCE(stopped_at,?) WHERE id = ?`).run(now(),sessionId);
   publish(e.meetingId, { type: "session", sessionId, status: "stopping" });
   await e.queue;
   const pendingChunks = (db().prepare("SELECT COUNT(*) n FROM live_chunks WHERE session_id=? AND status!='done'").get(sessionId) as {n:number}).n;
@@ -323,14 +332,19 @@ export async function stopSession(sessionId: string): Promise<{ utterances: numb
     await scheduleWindow(e, true);
     if(e.analyzedUpTo===before)break;
   }
-  e.chunkFiles=(db().prepare("SELECT file_path FROM live_chunks WHERE session_id=? AND status='done' ORDER BY idx").all(sessionId) as {file_path:string}[]).map(c=>c.file_path).filter(existsSync);
+  const finalReview=e.facilitator?getFacilitatorState(e.meetingId):null;
+  if(e.facilitator && (finalReview?.error || !finalReview || finalReview.processedMs<e.mediaEndMs))throw new Error("마지막 구간 분석을 마치지 못했습니다. 종료 처리를 다시 시도해 주세요.");
+  if(!e.facilitator && getMeetingUtterances(e.meetingId).length>e.analyzedUpTo)throw new Error("남은 발언 분석을 마치지 못했습니다. 종료 처리를 다시 시도해 주세요.");
+  e.chunkFiles=(db().prepare("SELECT file_path FROM live_chunks WHERE session_id=? AND status='done' ORDER BY idx").all(sessionId) as {file_path:string}[]).map(c=>c.file_path);
+  if(e.chunkFiles.some(f=>!f||!existsSync(f)))throw new Error("합칠 녹음 조각이 누락되었습니다. 저장된 원본을 복구한 뒤 종료 처리를 다시 시도해 주세요.");
   let fullAudio: string | null = null;
   if (e.chunkFiles.length) {
     const list = path.join(LIVE_DIR, sessionId, "concat.txt");
     writeFileSync(list, e.chunkFiles.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join("\n"));
     const out = path.join(LIVE_DIR, sessionId, "full.wav");
     const { execFile } = await import("node:child_process");
-    await new Promise<void>((res) => execFile("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", out], () => res()));
+    await new Promise<void>((res,reject) => execFile("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", out], {timeout:120_000}, (error) => error ? reject(new Error("녹음 파일 합치기에 실패했습니다. 저장된 조각으로 다시 시도해 주세요.")) : res()));
+    await probeDurationMs(out);
     fullAudio = out;
   }
   const utterances = getMeetingUtterances(e.meetingId).length;
@@ -346,22 +360,24 @@ export async function stopSession(sessionId: string): Promise<{ utterances: numb
     stats: { windows: e.state.windows, linkMethod: e.linkMethod, speakers: e.registry.length },
     agreements: e.state.agreements,
   });
-  db().prepare(`UPDATE live_sessions SET status = 'stopped', stopped_at = ?, full_audio = ? WHERE id = ?`).run(now(), fullAudio, sessionId);
+  saveSegment(sessionId,e.meetingId);
+  db().prepare(`UPDATE live_sessions SET status = 'stopped', error=NULL, stopped_at = COALESCE(stopped_at,?), full_audio = ? WHERE id = ?`).run(now(), fullAudio, sessionId);
   publish(e.meetingId, { type: "session", sessionId, status: "stopped" });
   engines.delete(sessionId);
   return { utterances, issues: e.state.issues.size, fullAudio };
 }
 
 /** Explicit recovery: successful chunks are not retranscribed after a process restart. */
-export function resumeSession(meetingId:string,sessionId:string):Engine {
+export function resumeSession(meetingId:string,sessionId:string,finishOnly=false):Engine {
   const current=engines.get(sessionId);
   if(current){if(current.meetingId!==meetingId||current.stopping)throw new LiveError("STOPPED","복구할 수 없는 세션입니다.");retryQueuedChunks(current);return current;}
   if(activeSessionFor(meetingId))throw new LiveError("ALREADY_RUNNING","다른 녹음 세션이 실행 중입니다.");
   const row=db().prepare("SELECT * FROM live_sessions WHERE id=? AND meeting_id=?").get(sessionId,meetingId) as {run_id:string;status:string;mode:string;registry_json:string;link_method:string|null}|undefined;
   const config=getFacilitatorState(meetingId);
-  if(!row||!["recording","stopping"].includes(row.status)||row.mode!=="mic"||config?.sessionId!==sessionId)throw new LiveError("NOT_FOUND","복구할 진행 보조 녹음 세션이 없습니다.");
+  const failedFinish=finishOnly&&row?.status==="stopped"&&!!db().prepare("SELECT id FROM alignment_v2_runs WHERE id=? AND status='failed'").get(row.run_id);
+  if(!row||(!["recording","stopping"].includes(row.status)&&!failedFinish)||row.mode!=="mic"||config?.sessionId!==sessionId)throw new LiveError("NOT_FOUND","복구할 진행 보조 녹음 세션이 없습니다.");
   const chunks=db().prepare("SELECT * FROM live_chunks WHERE session_id=? ORDER BY idx").all(sessionId) as {idx:number;offset_ms:number;duration_ms:number|null;file_path:string;status:string}[];
-  const e:Engine={sessionId,meetingId,runId:row.run_id,mode:"mic",facilitator:{goal:config.goal,intervalMinutes:config.intervalMinutes as 3|5|10},mediaEndMs:0,acceptedOffsets:new Map(),windowSize:12,state:newWindowState(meetingId,row.run_id),registry:JSON.parse(row.registry_json),analyzedUpTo:0,chunkIdx:Math.max(-1,...chunks.map(c=>c.idx))+1,queue:Promise.resolve(),windowRunning:false,windowAgain:false,stopping:false,linkMethod:row.link_method,chunkFiles:[],abort:new AbortController()};
+  const e:Engine={sessionId,meetingId,runId:row.run_id,mode:"mic",facilitator:{goal:config.goal,intervalMinutes:config.intervalMinutes as 3|5|10},mediaEndMs:segmentBase(sessionId),acceptedOffsets:new Map(),windowSize:12,state:newWindowState(meetingId,row.run_id),registry:JSON.parse(row.registry_json),analyzedUpTo:0,chunkIdx:Math.max(-1,...chunks.map(c=>c.idx))+1,queue:Promise.resolve(),windowRunning:false,windowAgain:false,stopping:false,linkMethod:row.link_method,chunkFiles:[],abort:new AbortController()};
   const dir=path.join(LIVE_DIR,sessionId),files=readdirSync(dir);
   for(const c of chunks){
     const rawName=files.find(f=>f.startsWith(`raw_${pad(c.idx)}.`));const raw=rawName?path.join(dir,rawName):null;

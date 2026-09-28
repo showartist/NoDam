@@ -51,13 +51,15 @@ export function getMeetingUtterances(meetingId: string): MeetingUtterance[] {
         ORDER BY u.idx`,
     )
     .all(meetingId) as unknown as UtteranceDbRow[];
+  const transcription = db().prepare("SELECT diarization_status FROM transcription_runs WHERE meeting_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(meetingId) as {diarization_status:string}|undefined;
+  const unverified = transcription && transcription.diarization_status !== "ok";
   return rows.map((r) => {
     const name = r.mapped_name ?? r.speaker_name ?? null;
     return {
       uid: r.uid,
       idx: r.idx,
-      speakerKey: speakerKeyOf(r.speaker_id, r.speaker_name),
-      speakerId: r.speaker_id,
+      speakerKey: speakerKeyOf(unverified ? null : r.speaker_id, name),
+      speakerId: unverified ? null : r.speaker_id,
       speakerName: name,
       role: r.mapped_role ?? r.role ?? null,
       text: r.text_clean,

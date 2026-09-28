@@ -38,7 +38,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     if (progress.failedChunks.length) return NextResponse.json({ success: false, code: "PARTIAL_TRANSCRIPTION", error: "일부 조각 전사 실패. 성공 조각은 보존했으며 기존 회의록은 변경하지 않았습니다.", ...progress }, { status: 502 });
     const result = await finishAudioJob(job);
     const method = `${result.method}+${result.speakerSource}`;
-    const { runId } = replaceMeetingTranscript(meetingId, result, method);
+    const { runId } = replaceMeetingTranscript(meetingId, result, method, {file:job.file,flags:result.reviewFlags});
     const response = { success: true, status: "completed", jobId: job.id, runId, provider: result.provider, model: result.model, language: result.language,
       sourceFileName: result.sourceFileName, durationMs: result.durationMs, diarizationStatus: result.diarizationStatus, speakerCount: result.speakerCount,
       method, chunkCount: result.chunks.length, speakerNote: result.speakerNote, utteranceCount: result.utterances.length,

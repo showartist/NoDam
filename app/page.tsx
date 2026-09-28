@@ -60,6 +60,7 @@ export default async function DashboardPage() {
 
       <div className="main-wrapper" style={{ padding: 24, overflowY: "auto" }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
+          <Link href="/v2" className="small primary">MVP v2 · 새 회의 흐름 열기</Link>
           <h2 style={{ margin: 0 }}>동상이몽 · 영화 프리프로덕션 워크벤치</h2>
           <Link href="/new" className="small primary" style={{ textDecoration: "none" }}>
             ＋ 새 회의 분석

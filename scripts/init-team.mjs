@@ -1,0 +1,10 @@
+import {randomBytes,createHash} from "node:crypto";
+import {writeFileSync,mkdirSync,existsSync} from "node:fs";
+import path from "node:path";
+const domain=process.argv[2],folder=path.resolve(process.argv[3]??"deploy");
+if(!domain||!/^(?=.{1,253}$)[a-z0-9]+(?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/.test(domain))throw new Error("사용법: node scripts/init-team.mjs meeting.example.com [설정 폴더]");
+mkdirSync(folder,{recursive:true});if(existsSync(path.join(folder,'.env'))||existsSync(path.join(folder,'admin-credentials.txt')))throw new Error("기존 운영 설정을 덮어쓰지 않습니다.");
+const password=randomBytes(32).toString('base64url');
+writeFileSync(path.join(folder,'.env'),`NODAM_TEAM_MODE=1\nNODAM_DOMAIN=${domain}\nNODAM_PUBLIC_ORIGIN=https://${domain}\nNODAM_ADMIN_PASSWORD_HASH=${createHash('sha256').update(password).digest('hex')}\nOPENROUTER_API_KEY=\n`,{mode:0o600,flag:'wx'});
+writeFileSync(path.join(folder,'admin-credentials.txt'),`진행자 계정: admin\n비밀번호: ${password}\n다른 사람에게 공유하지 마세요. 참가자에게는 개인 초대 링크를 전달하세요.\n`,{mode:0o600,flag:'wx'});
+console.log('운영 설정과 진행자 로그인 파일을 생성했습니다. 비밀번호는 출력하지 않았습니다. .env에 API 키를 직접 설정하세요.');

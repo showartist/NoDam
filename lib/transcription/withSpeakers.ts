@@ -17,7 +17,7 @@ export async function withSidecarSpeakers(
     return { result, speakerSource: result.diarizationStatus === "ok" ? "provider" : "none", note: "단어 타임스탬프가 없어 공급자 화자 정보를 그대로 씀" };
   }
   if (!(await sidecarHealth())) {
-    return { result, speakerSource: result.diarizationStatus === "ok" ? "provider" : "none", note: "사이드카가 꺼져 있어 공급자 화자 정보를 그대로 씀" };
+    return { result, speakerSource: result.diarizationStatus === "ok" ? "provider" : "none", note: result.diarizationStatus === "ok" ? "사이드카가 꺼져 있어 공급자 화자 정보를 그대로 씀" : "회의 전체 화자 연결을 확인하지 못했습니다. 발언은 보존하고 화자는 미확인으로 표시합니다." };
   }
   const d = await diarize(audioPath, { numSpeakers: opts.numSpeakers ?? null, timeoutMs: opts.timeoutMs });
   const spans = d.segments.map((s) => ({ startMs: s.start_ms, endMs: s.end_ms, speaker: s.speaker }));

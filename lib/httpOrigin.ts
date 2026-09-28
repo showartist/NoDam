@@ -1,0 +1,1 @@
+export function sameAppOrigin(req:Request){const origin=req.headers.get("origin");if(!origin)return true;const allowed=process.env.NODAM_PUBLIC_ORIGIN??new URL(req.url).origin;return origin===allowed;}

@@ -1,0 +1,10 @@
+import {db,now} from "../db";
+import {getMeetingUtterances} from "../alignment/store";
+import {getDecisionBoard} from "../meetingDecisions/store";
+export function segmentDatabase(){const d=db();d.exec("CREATE TABLE IF NOT EXISTS live_segments(session_id TEXT PRIMARY KEY,base_ms INTEGER NOT NULL,snapshot_json TEXT,saved_at TEXT)");return d;}
+export function segmentBase(sessionId:string){return (segmentDatabase().prepare("SELECT base_ms FROM live_segments WHERE session_id=?").get(sessionId) as {base_ms:number}|undefined)?.base_ms??0;}
+export function saveSegment(sessionId:string,meetingId:string){const d=segmentDatabase();const snapshot={schema:1,meetingId,sessionId,savedAt:now(),throughUid:getMeetingUtterances(meetingId).at(-1)?.uid??null,utterances:getMeetingUtterances(meetingId),decisions:getDecisionBoard(meetingId)};d.prepare("UPDATE live_segments SET snapshot_json=?,saved_at=? WHERE session_id=? AND snapshot_json IS NULL").run(JSON.stringify(snapshot),snapshot.savedAt,sessionId);}
+export function meetingSegments(meetingId:string){return segmentDatabase().prepare("SELECT l.id,l.status,l.started_at,l.stopped_at,s.base_ms,s.saved_at FROM live_sessions l LEFT JOIN live_segments s ON s.session_id=l.id WHERE l.meeting_id=? ORDER BY l.started_at,l.rowid").all(meetingId) as {id:string;status:string;started_at:string;stopped_at:string|null;base_ms:number|null;saved_at:string|null}[];}
+export function segmentSnapshot(meetingId:string,sessionId:string){return segmentDatabase().prepare("SELECT s.snapshot_json FROM live_segments s JOIN live_sessions l ON l.id=s.session_id WHERE l.meeting_id=? AND s.session_id=?").get(meetingId,sessionId) as {snapshot_json:string|null}|undefined;}
+
+export function speakerChunkIndex(sessionId:string,index:number){const row=db().prepare("SELECT COUNT(*) n FROM live_chunks c JOIN live_sessions l ON l.id=c.session_id JOIN live_sessions current ON current.id=? WHERE l.meeting_id=current.meeting_id AND l.rowid<current.rowid").get(sessionId) as {n:number};return row.n+index;}

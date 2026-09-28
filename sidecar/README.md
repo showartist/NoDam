@@ -4,9 +4,8 @@ Node 앱이 HTTP 로 부르는 로컬 파이썬 음성 서비스입니다. 화�
 전사(STT)는 하지 않습니다. 전사는 계속 OpenRouter Grok STT 가 합니다.
 
 ```bash
-cd sidecar
-uv sync                      # 처음 한 번. Python 3.12 가상환경(.venv)을 만든다
-uv run uvicorn audio_sidecar.server:app --port 8790
+# NoDam 저장소 루트에서 실행. Python 환경을 저장소 밖에 만든다.
+npm run audio:server
 curl http://127.0.0.1:8790/health
 ```
 

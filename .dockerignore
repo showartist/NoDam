@@ -1,0 +1,16 @@
+.git
+.next
+node_modules
+.data
+.env*
+*.wav
+*.aiff
+*.mp4
+*.mp3
+sharing-service
+deploy/admin-credentials.txt
+
+**/.env*
+**/admin-credentials.txt
+**/*.db
+**/*.sqlite
