@@ -8,6 +8,7 @@
  */
 import { db, now, uid } from "../db";
 import type { TranscriptResult } from "./types";
+import { saveAudioSource, type AudioSource } from "./source";
 import { inferSpeakerNames } from "./speakerNames";
 
 const msToClock = (ms: number): string => {
@@ -15,7 +16,7 @@ const msToClock = (ms: number): string => {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 };
 
-export function replaceMeetingTranscript(meetingId: string, result: TranscriptResult, method: string): { runId: string } {
+export function replaceMeetingTranscript(meetingId: string, result: TranscriptResult, method: string, source?: AudioSource): { runId: string } {
   const d = db();
   const ts = now();
   const runId = uid();
@@ -57,6 +58,7 @@ export function replaceMeetingTranscript(meetingId: string, result: TranscriptRe
       d.prepare(`INSERT INTO speaker_mappings (meeting_id, speaker_id, display_name, role, updated_at) VALUES (?,?,?,?,?)`)
         .run(meetingId, speakerId, name, null, ts);
     }
+    if(source) saveAudioSource(runId,source);
     d.exec("COMMIT");
   } catch (e) {
     try {

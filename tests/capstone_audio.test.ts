@@ -40,6 +40,7 @@ test("30분 25MB 초과 WAV: 실제 ffmpeg 분할, 2개 동시 Opus 전사 응�
     assert.equal(result.words?.length, 61); assert.equal(result.words?.[1].startMs, 29000);
     assert.equal(result.diarizationStatus, "unsupported");
     assert.equal(result.speakerCount, null);
+    assert.ok(result.utterances.every(u => u.speakerId === null), "조각 화자를 전체 회의의 사람으로 표시하지 않음");
     assert.equal(result.text.split(" ").length, 61);
   } finally {
     globalThis.fetch = fetchBefore;

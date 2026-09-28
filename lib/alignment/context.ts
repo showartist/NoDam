@@ -22,6 +22,7 @@ import type { MeetingUtterance } from "./store";
 export type ContextCheckOptions = { model?: string; concurrency?: number; neighbors?: number; useCache?: boolean };
 
 const JudgeOutput = z.object({
+  resolution: z.object({verdict:z.enum(["open","settled","unclear"]),evidence:z.array(z.string()),note:z.string()}),
   positions: z.array(
     z.object({
       index: z.number().int(),
@@ -44,7 +45,13 @@ const JUDGE_SYSTEM = `당신은 회의 분석 결과를 원문 발언과 대조�
 - supported: 근거 발언이 이 요약을 직접 뒷받침한다.
 - partial: 방향은 맞지만 요약이 발언보다 더 나갔거나(과장·추측), 일부만 뒷받침된다.
 - contradicted: 발언과 어긋나거나, 다른 사람이 한 말을 이 사람의 말로 썼다.
-앞뒤 맥락은 "그거", "네 그렇게" 같은 말이 무엇을 가리키는지 알아보는 데만 쓴다.
+앞뒤 맥락은 "그거", "네 그렇게" 같은 말이 무엇을 가리키는지 확인한다. S? 또는 화자 미상은 동일인이라는 뜻이 아니며 화자를 추측하지 않는다.
+
+회의 종료 시점의 안건 상태(resolution)
+- settled: 이 안건을 뒤에서 명시적으로 수용·선택했고 새 반대나 미해결 조건이 없다. 선택이 이미 끝났는데 질문이 다시 선택을 요구한다면 settled다.
+- open: 실제로 남은 선택이나 미충족 조건이 있다. 리허설에서 확인하기로 했지만 실제 확인이 남았으면 open이다.
+- unclear: 근거가 충분하지 않다. "일단" 하나만으로 미결이라고 하거나 "네" 하나만으로 해결됐다고 하지 않는다.
+- evidence에는 판정의 근거 발언 번호를 넣는다. 뒤의 수용과 재반대까지 확인한다. 이것은 대화에서 정리됐는지 검사하는 것이며 참가자의 최종 승인을 대신하지 않는다.
 
 항목 짝 판정
 - same: 영화 제작 현장 기준으로 같은 것을 가리키거나, 한쪽이 다른 쪽을 구체화했을 뿐 서로 부딪히지 않는다.
@@ -117,6 +124,8 @@ function buildJudgeMessage(issue: AlignmentIssueV2, pairs: Pair[], utts: Meeting
     "",
     pairs.length ? "항목 짝:" : "항목 짝: 없음 (slot_pairs 는 빈 배열)",
     ...pairLines,
+    "회의 전체 시간순 발언 — 뒤에서 수용했거나 다시 번복했는지 확인:",
+    ...utts.map(line),
   ].join("\n");
 }
 
@@ -144,6 +153,7 @@ export type ContextStats = {
   unclearPairs: number;
   cacheHits: number;
   failures: number;
+  settledIssues: {issue_id:string;evidence:string[];note:string;issue:AlignmentIssueV2}[];
 };
 
 export async function runContextChecks(
@@ -166,6 +176,7 @@ export async function runContextChecks(
     unclearPairs: 0,
     cacheHits: 0,
     failures: 0,
+    settledIssues: [],
   };
   const schema = z.toJSONSchema(JudgeOutput, { target: "draft-07" }) as Record<string, unknown>;
 
@@ -205,6 +216,13 @@ export async function runContextChecks(
       return issue; // 판정 실패면 not_checked 로 둔다. 통과로 바꾸지 않는다.
     }
 
+    const resolutionEvidence = [...new Set(out.resolution.evidence)];
+    const validIds = new Map(utts.map(u=>[u.uid,u.idx]));
+    const firstEvidence = Math.min(...issue.evidence_all.map(uid=>validIds.get(uid)??Infinity));
+    if(out.resolution.verdict === "settled" && resolutionEvidence.length > 0 && resolutionEvidence.every(uid=>validIds.has(uid)) && resolutionEvidence.some(uid=>validIds.get(uid)! >= firstEvidence)) {
+      stats.settledIssues.push({issue_id:issue.issue_id,evidence:resolutionEvidence,note:out.resolution.note,issue});
+      return null;
+    }
     const verdicts = new Map<string, PairVerdict>();
     for (const sp of out.slot_pairs) {
       const q = pairs[sp.index];
@@ -232,8 +250,8 @@ export async function runContextChecks(
       })
       .filter((p): p is AlignmentIssueV2["positions"][number] => p !== null);
 
-    const distinct = new Set(positions.map((p) => p.speaker.key)).size;
-    if (distinct < MIN_DISTINCT_SPEAKERS[issue.type]) {
+    const distinct = new Set(positions.map((p) => p.speaker.key).filter(Boolean)).size;
+    if ((MIN_DISTINCT_SPEAKERS[issue.type] > 1 && distinct < MIN_DISTINCT_SPEAKERS[issue.type]) || !positions.length) {
       stats.droppedIssues.push({ issue_id: issue.issue_id, reason: `문맥 검사 뒤 서로 다른 화자가 ${distinct}명` });
       return null;
     }

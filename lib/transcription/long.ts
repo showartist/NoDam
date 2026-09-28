@@ -6,9 +6,11 @@ import { probeDurationMs, extractAudioChunk, toOpus } from "../audio/ffmpeg";
 import { OpenRouterTranscriptionProvider, buildUtterances } from "./providers/openrouter";
 import { withSidecarSpeakers } from "./withSpeakers";
 import { TranscriptionError, type TranscriptResult, type TranscriptWord } from "./types";
+import { audioReviewFlags, type AudioReviewFlag } from "./review";
 import { AUDIO_POLICY as P } from "./policy";
 
 export type LongResult = TranscriptResult & {
+  reviewFlags: AudioReviewFlag[];
   method: "chunked";
   speakerSource: "sidecar" | "provider" | "none";
   speakerNote: string | null;
@@ -123,7 +125,8 @@ export async function finishAudioJob(job: AudioJob): Promise<LongResult> {
   // 화자 분석은 조각 처리와 별도 요청에서 실행. 실패해도 전사 글자는 남기고 화자 미확인으로 표시한다.
   const s = await withSidecarSpeakers(base, job.file, { numSpeakers: job.numSpeakers, timeoutMs: 120_000 })
     .catch((e: Error) => ({ result: base, speakerSource: "none" as const, note: `화자분리 실패: ${e.message}` }));
-  return { ...s.result, method: "chunked", speakerSource: s.speakerSource === "provider" ? "none" : s.speakerSource, speakerNote: s.note, chunks: meta };
+  const result = s.result.diarizationStatus === "ok" ? s.result : { ...s.result, speakerCount: null, utterances: s.result.utterances.map(u => ({...u, speakerId: null, speakerName: null})) };
+  return { ...result, reviewFlags: audioReviewFlags(meta,words), method: "chunked", speakerSource: s.speakerSource === "provider" ? "none" : s.speakerSource, speakerNote: s.note, chunks: meta };
 }
 /** CLI용 전체 반복. 웹 업로드는 processAudioBatch를 요청마다 호출한다. */
 export async function transcribeLong(file: string, opts: { chunkMs?: number; overlapMs?: number; numSpeakers?: number | null; jobId?: string } = {}): Promise<LongResult> {

@@ -65,7 +65,6 @@ export function checkSpeakerEvidence(
 export const CONDITION_PATTERNS: RegExp[] = [
   /확인\s*(전|후|되면|해\s*보고)/,
   /전까지/,
-  /일단/,
   /열어\s*(두|둡|놓)/,
   /보류/,
   /해\s*보고/,

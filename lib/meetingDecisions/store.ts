@@ -1,3 +1,4 @@
+import {settledIssues} from "../alignment/settled";
 import {analysisSourceChanged} from "../alignment/jobs";
 import { getIntakeMetadata, isPracticeMeeting } from "../meetingIntake/store";
 import { db, now, uid } from "../db";
@@ -62,12 +63,14 @@ export function changeDecisionBoard(meetingId: string, revision: number, value: 
         d.exec("ROLLBACK"); return getDecisionBoard(meetingId);
       }
       let analysis = null;
+      let resolutionEvidence:string[]=[];
       if (command.action === "import_analysis") {
         const run = getRun(command.runId);
         if (!run || run.meeting_id !== meetingId) throw new DecisionError(404, "이 회의의 분석을 찾을 수 없습니다.");
         if (run.status !== "completed" || getCurrentRun(meetingId)?.id !== run.id) throw new DecisionError(409, "현재 완료된 분석에서 후보를 다시 선택해 주세요.");
         if(analysisSourceChanged(run.id,meetingId))throw new DecisionError(409,"발언 또는 화자가 수정되었습니다. 다시 분석한 후보를 가져와 주세요.");
         analysis = getIssue(meetingId, command.issueId, command.runId);
+        if(!analysis){const settled=settledIssues(run.stats_json).find(s=>s.issue_id===command.issueId);if(settled?.issue&&settled.issue.meeting_id===meetingId&&settled.issue.analysis_run_id===run.id&&settled.issue.issue_id===command.issueId){analysis=settled.issue;resolutionEvidence=settled.evidence;}}
         if (!analysis) throw new DecisionError(404, "분석 후보를 찾을 수 없습니다.");
         if (board.questions.some(q => q.analysisSource?.runId === command.runId && q.analysisSource.issueId === command.issueId)) {
           d.exec("ROLLBACK"); return getDecisionBoard(meetingId);
@@ -79,6 +82,7 @@ export function changeDecisionBoard(meetingId: string, revision: number, value: 
         if (!id) throw new DecisionError(409, "분석 인용과 현재 원문이 다릅니다. 원문을 확인하고 다시 분석해 주세요.");
         return {uid:id,quote:p.quote};
       }) : imported!.evidence.map(e => ({uid:e.uid,quote:e.quote}));
+      for(const id of resolutionEvidence){const quote=turns.get(id);if(!quote)throw new DecisionError(409,"정리 근거가 현재 원문에 없습니다. 다시 분석해 주세요.");if(!refs.some(e=>e.uid===id))refs.push({uid:id,quote});}
       if (!refs.length) throw new DecisionError(409, "원문 근거 없는 후보는 가져올 수 없습니다.");
       for (const e of refs) if (!turns.get(e.uid)?.includes(e.quote)) throw new DecisionError(400, `현재 회의 원문과 맞지 않는 근거: ${e.uid}`);
       const q: Question = {id:uid(),question:command.action === "question" ? command.question : analysis ? analysis.question : imported!.question,evidence:refs,source:command.action === "import" ? {reviewId:command.reviewId,findingIndex:command.findingIndex} : null,proposal:"",proposalRevision:0,responses:[],task:null,feedback:null,confirmedAt:null,participantsAtConfirmation:[]};
